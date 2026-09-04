@@ -1,6 +1,6 @@
 # Isaac Lab integration
 
-<span class="status-pill">Pre-release integration</span>
+**Status:** Pre-release integration.
 
 The dedicated [Isaac Lab repository](https://github.com/EESC-LabRoM/isaaclab-hiveboard) is intended for runnable learning and evaluation workflows built around the HiveBoard assets.
 
@@ -66,4 +66,3 @@ Before merging this prototype into the official documentation:
 - [ ] Add one command for headless training.
 - [ ] Link task configuration and success-check source files.
 - [ ] Include a short troubleshooting section for common Isaac version mismatches.
-

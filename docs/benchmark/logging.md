@@ -2,18 +2,10 @@
 
 Use the supplied spreadsheet during experiments and the CSV for scripts or data exchange.
 
-<div class="workflow-grid">
-  <a class="workflow-card" href="https://github.com/EESC-LabRoM/HiveBoard/raw/main/Documentation/trials.xlsx">
-    <span class="step">↓</span>
-    <strong>Download XLSX</strong>
-    <span>Recommended for manual entry. Includes the complete set of pre-populated trial rows.</span>
-  </a>
-  <a class="workflow-card" href="https://github.com/EESC-LabRoM/HiveBoard/raw/main/Documentation/trials.csv">
-    <span class="step">↓</span>
-    <strong>Download CSV</strong>
-    <span>Recommended for scripts, version control, and automated validation.</span>
-  </a>
-</div>
+<ul class="doc-links">
+  <li><a href="https://github.com/EESC-LabRoM/HiveBoard/raw/main/Documentation/trials.xlsx"><strong>Download the XLSX template</strong></a> — for manual entry, with all trial rows pre-populated.</li>
+  <li><a href="https://github.com/EESC-LabRoM/HiveBoard/raw/main/Documentation/trials.csv"><strong>Download the CSV template</strong></a> — for scripts, version control, and automated validation.</li>
+</ul>
 
 Do not change `trial_id` or `attachment_id`. Fill the remaining columns while running the trials.
 
@@ -72,4 +64,3 @@ trial_id,lab_id,platform_id,attachment_id,date,outcome,failure_cause,completion_
 | Replacing a damaged-part trial with a clean rerun | Preserve the trial and explain the event in `notes` |
 
 See the canonical [column-by-column instructions](https://github.com/EESC-LabRoM/HiveBoard/blob/main/Documentation/HOW_TO_FILL_TRIALS.md) for the full reference.
-

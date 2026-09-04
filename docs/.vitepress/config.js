@@ -2,67 +2,66 @@ import { defineConfig } from 'vitepress'
 
 export default defineConfig({
   title: 'HiveBoard Documentation',
-  description: 'Build, simulate, and evaluate the HiveBoard manipulation benchmark.',
+  description: 'Documentation for the HiveBoard manipulation benchmark.',
   lang: 'en-US',
   base: '/hiveboard-docs/',
   cleanUrls: true,
   lastUpdated: true,
+  appearance: false,
   head: [
-    ['meta', { name: 'theme-color', content: '#f0a51a' }],
+    ['meta', { name: 'theme-color', content: '#23527c' }],
     ['link', { rel: 'icon', href: '/hiveboard-docs/images/hiveboard-mark.svg' }]
   ],
   themeConfig: {
     logo: '/images/hiveboard-mark.svg',
-    siteTitle: 'HiveBoard Docs',
+    siteTitle: 'HiveBoard',
     search: { provider: 'local' },
     nav: [
-      { text: 'Documentation', link: '/' },
       { text: 'Project website', link: 'https://hiveboard-bench.github.io' },
-      {
-        text: 'Repositories',
-        items: [
-          { text: 'Parts and protocol', link: 'https://github.com/EESC-LabRoM/HiveBoard' },
-          { text: 'Isaac Lab', link: 'https://github.com/EESC-LabRoM/isaaclab-hiveboard' }
-        ]
-      }
+      { text: 'GitHub', link: 'https://github.com/EESC-LabRoM/HiveBoard' }
     ],
     sidebar: [
       {
-        text: 'Getting started',
+        text: 'Getting Started',
         items: [
-          { text: 'Documentation home', link: '/' },
-          { text: 'Benchmark overview', link: '/getting-started/overview' },
-          { text: 'Choose a workflow', link: '/getting-started/quick-start' }
+          { text: 'Introduction', link: '/' },
+          { text: 'Benchmark Overview', link: '/getting-started/overview' },
+          { text: 'Getting Started', link: '/getting-started/quick-start' }
         ]
       },
       {
-        text: 'Build HiveBoard',
+        text: 'Hardware',
         items: [
-          { text: 'Print the parts', link: '/hardware/printing' },
-          { text: 'Assemble and mount', link: '/hardware/assembly' },
-          { text: 'Module reference', link: '/hardware/modules' }
+          { text: '3D Printing', link: '/hardware/printing' },
+          { text: 'Assembly and Mounting', link: '/hardware/assembly' },
+          { text: 'Module Reference', link: '/hardware/modules' }
         ]
       },
       {
-        text: 'Run the benchmark',
+        text: 'Benchmark',
         items: [
-          { text: 'Evaluation protocol', link: '/benchmark/protocol' },
-          { text: 'Record trials', link: '/benchmark/logging' },
-          { text: 'Report results', link: '/benchmark/results' }
+          { text: 'Evaluation Protocol', link: '/benchmark/protocol' },
+          { text: 'Trial Logging', link: '/benchmark/logging' },
+          { text: 'Reporting Results', link: '/benchmark/results' }
         ]
       },
       {
         text: 'Simulation',
         items: [
-          { text: 'Simulation assets', link: '/simulation/assets' },
-          { text: 'Isaac Lab integration', link: '/simulation/isaac-lab' }
+          { text: 'Simulation Assets', link: '/simulation/assets' },
+          { text: 'Isaac Lab Integration', link: '/simulation/isaac-lab' }
         ]
       },
       {
-        text: 'Extend and reference',
+        text: 'Development',
         items: [
-          { text: 'Add a new attachment', link: '/guides/new-attachment' },
-          { text: 'Repository map', link: '/reference/repositories' },
+          { text: 'Adding an Attachment', link: '/guides/new-attachment' }
+        ]
+      },
+      {
+        text: 'Reference',
+        items: [
+          { text: 'Repository Structure', link: '/reference/repositories' },
           { text: 'Troubleshooting', link: '/reference/troubleshooting' },
           { text: 'Citation', link: '/reference/citation' }
         ]
@@ -76,8 +75,8 @@ export default defineConfig({
       text: 'Edit this page on GitHub'
     },
     footer: {
-      message: 'Open documentation for the HiveBoard benchmark.',
-      copyright: 'HiveBoard contributors'
+      message: 'HiveBoard documentation',
+      copyright: 'Copyright © 2026 HiveBoard contributors'
     },
     outline: { level: [2, 3], label: 'On this page' },
     docFooter: { prev: 'Previous', next: 'Next' },
