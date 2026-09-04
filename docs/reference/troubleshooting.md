@@ -36,7 +36,22 @@ Inspect the joint axis, parent-child order, and initial pose. Compare the full m
 
 Begin with one environment and a conservative timestep. Inspect collision geometry, penetration at reset, solver settings, drive gains, and mass ratios. Treat the supplied physical properties as nominal rather than identified values.
 
-## The Isaac Lab repository cannot be accessed
+## An Isaac Lab asset cannot be found
 
-The integration may still be restricted during pre-release. Use the articulated assets from the main HiveBoard repository until the runnable environment and its tested version information are public.
+The simulation repository uses Git submodules. From the repository root, initialize or update them with:
 
+```bash
+git submodule update --init --recursive
+```
+
+The `dependencies/HiveBoard`, `dependencies/curobo`, and `dependencies/duatic_dynaarm` directories should then contain their respective repositories.
+
+## An Isaac Lab task is not registered
+
+Run the environment-listing script inside the project environment:
+
+```bash
+uv run python scripts/list_envs.py
+```
+
+Use the exact `Isaac-HiveBoard-*` identifier printed by the script. If imports fail, run `uv sync` from the repository root and continue using `uv run` for subsequent commands.
