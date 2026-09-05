@@ -16,5 +16,3 @@ Use this page while running a HiveBoard evaluation. It guides each trial, applie
 <ClientOnly>
   <EvaluationRunner />
 </ClientOnly>
-
-The web timer is provided for convenience. Use synchronized robot-side timestamps when the experimental system already records them reliably.

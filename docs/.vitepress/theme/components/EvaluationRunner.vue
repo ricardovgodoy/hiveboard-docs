@@ -135,6 +135,7 @@ const countdown = ref(5)
 const elapsedMs = ref(0)
 const trialForm = reactive(emptyTrialForm())
 const error = ref('')
+const exampleVideoTask = ref(null)
 const mounted = ref(false)
 let ticker = null
 let startMark = 0
@@ -360,7 +361,20 @@ function newSession() {
   window.localStorage.removeItem(STORAGE_KEY)
 }
 
+function openExampleVideo(task) {
+  exampleVideoTask.value = task
+}
+
+function closeExampleVideo() {
+  exampleVideoTask.value = null
+}
+
 function handleKey(event) {
+  if (event.key === 'Escape' && exampleVideoTask.value) {
+    event.preventDefault()
+    closeExampleVideo()
+    return
+  }
   const target = event.target
   if (target && ['INPUT', 'SELECT', 'TEXTAREA', 'BUTTON'].includes(target.tagName)) return
   if (event.code !== 'Space' || step.value !== 'trial') return
@@ -503,9 +517,9 @@ onUnmounted(() => {
             <div><dt>Reset</dt><dd>{{ currentTask.reset }}</dd></div>
           </dl>
           <div class="reference-links">
-            <a :href="currentTask.video" target="_blank" rel="noreferrer noopener">
-              Watch example trial <span>{{ currentTask.videoPlatform }}</span> ↗
-            </a>
+            <button class="video-link" type="button" @click="openExampleVideo(currentTask)">
+              Watch example trial <span>{{ currentTask.videoPlatform }}</span>
+            </button>
             <a href="https://hiveboard-bench.github.io/#Simulation-Compatibility" target="_blank" rel="noreferrer noopener">Open the interactive simulation ↗</a>
           </div>
         </div>
@@ -634,6 +648,25 @@ onUnmounted(() => {
       <div class="new-session"><button class="text-button" type="button" @click="newSession">Start a new session</button></div>
     </section>
   </div>
+
+  <Teleport to="body">
+    <div v-if="exampleVideoTask" class="video-modal-backdrop" @click.self="closeExampleVideo">
+      <section class="video-modal" role="dialog" aria-modal="true" aria-labelledby="example-video-title">
+        <header>
+          <div>
+            <p>Example trial · {{ exampleVideoTask.videoPlatform }}</p>
+            <h2 id="example-video-title">{{ exampleVideoTask.name }}</h2>
+          </div>
+          <button class="video-close" type="button" aria-label="Close example video" @click="closeExampleVideo">Close</button>
+        </header>
+        <video :key="exampleVideoTask.video" controls autoplay muted playsinline preload="metadata" controlslist="nodownload">
+          <source :src="exampleVideoTask.video" type="video/mp4">
+          Your browser does not support HTML video.
+        </video>
+        <p class="video-caption">This example illustrates the task outcome; it does not prescribe a control strategy.</p>
+      </section>
+    </div>
+  </Teleport>
 </template>
 
 <style scoped>
@@ -691,6 +724,17 @@ button.compact { min-height: 36px; padding: .35rem .75rem; }
 .reference-links { display: grid; gap: .45rem; }
 .task-reference a { font-size: .84rem; font-weight: 600; }
 .task-reference a span { color: #57606a; font-size: .78rem; font-weight: 400; }
+.video-link { width: fit-content; padding: 0; border: 0; background: transparent; color: #23527c; font: inherit; font-size: .84rem; font-weight: 600; text-align: left; text-decoration: underline; }
+.video-link span { color: #57606a; font-size: .78rem; font-weight: 400; }
+.video-modal-backdrop { position: fixed; z-index: 1000; inset: 0; display: flex; padding: 1.5rem; align-items: center; justify-content: center; background: rgba(13, 23, 33, .82); }
+.video-modal { overflow: hidden; width: min(960px, 100%); max-height: calc(100vh - 3rem); border: 1px solid #cfd5db; border-radius: 2px; background: #fff; box-shadow: 0 20px 60px rgba(0, 0, 0, .35); color: #24292f; }
+.video-modal header { display: flex; padding: .9rem 1rem; align-items: center; justify-content: space-between; gap: 1rem; }
+.video-modal header p { margin: 0 0 .15rem; color: #57606a; font-size: .76rem; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; }
+.video-modal header h2 { margin: 0; border: 0; font-size: 1.1rem; }
+.video-modal video { display: block; width: 100%; max-height: calc(100vh - 12rem); aspect-ratio: 16 / 9; background: #000; }
+.video-close { min-height: 38px; padding: .4rem .75rem; border: 1px solid #aeb6bf; border-radius: 2px; background: #fff; color: #263746; font: inherit; font-size: .84rem; font-weight: 600; }
+.video-close:hover { background: #f3f4f6; }
+.video-caption { margin: 0; padding: .7rem 1rem .8rem; color: #57606a; font-size: .8rem; }
 .timer-panel { display: flex; min-height: 330px; padding: 1.25rem; border: 1px solid #cfd5db; align-items: center; justify-content: center; flex-direction: column; text-align: center; }
 .timer-panel.running { border-color: #23527c; background: #f7fbff; }
 .stopwatch, .countdown { color: #172b3a; font-variant-numeric: tabular-nums; line-height: 1; }
@@ -732,5 +776,6 @@ button.compact { min-height: 36px; padding: .35rem .75rem; }
   .review-stats { grid-template-columns: 1fr; }
   .review-stats div { border-right: 0; border-bottom: 1px solid #dfe2e5; }
   .review-stats div:last-child { border-bottom: 0; }
+  .video-modal-backdrop { padding: .75rem; }
 }
 </style>
