@@ -4,65 +4,76 @@ import { withBase } from 'vitepress'
 
 const STORAGE_KEY = 'hiveboard-evaluation-runner-v1'
 const REQUIRED_TRIALS = 5
+const VIDEO_BASE = 'https://github.com/hiveboard-bench/hiveboard-bench.github.io/releases/download/v1.0-v1.0-videos'
 
 const tasks = [
   {
     id: 'valve_ball', name: 'Ball valve', family: 'Torque', timeout: 60,
     image: '/images/tasks/torque_valve_noFriction_3d.png',
+    video: `${VIDEO_BASE}/s010_valve_ball.mp4`, videoPlatform: 'Platform B · LeRobot SO-101',
     success: 'Rotate the handle 90° from the closed state to the open state.',
     reset: 'Return the handle to the closed position and confirm that the attachment is fully seated.'
   },
   {
     id: 'valve_ball_ring', name: 'Ball valve with friction ring', family: 'Torque', timeout: 90,
     image: '/images/tasks/torque_valve_noFriction_3d.png',
+    video: `${VIDEO_BASE}/anymal_valve_lever_hard_vr.mp4`, videoPlatform: 'Platform C · ANYmal with DynaArm (VR)',
     success: 'Rotate the handle 90° from closed to open with the friction ring fitted.',
     reset: 'Fit the friction ring, return the handle to closed, and confirm that the attachment is seated.'
   },
   {
     id: 'valve_gate_small', name: 'Small gate valve', family: 'Torque', timeout: 90,
     image: '/images/tasks/small_valve_3d.png',
+    video: `${VIDEO_BASE}/spot_small_valve.mp4`, videoPlatform: 'Platform A · Spot with Spot Arm',
     success: 'Complete one full turn of the valve stem.',
     reset: 'Return the stem to the marked initial orientation without changing the board position.'
   },
   {
     id: 'valve_gate_large', name: 'Large gate valve', family: 'Torque', timeout: 120,
     image: '/images/tasks/big_valve_3d.png',
+    video: `${VIDEO_BASE}/spot_big_valve.mp4`, videoPlatform: 'Platform A · Spot with Spot Arm',
     success: 'Complete one full turn of the valve stem.',
     reset: 'Return the stem to the marked initial orientation without changing the board position.'
   },
   {
     id: 'circuit_breaker', name: 'Circuit breaker', family: 'Torque', timeout: 60,
     image: '/images/tasks/switch_3d.png',
+    video: `${VIDEO_BASE}/spot_circuit_breaker.mp4`, videoPlatform: 'Platform A · Spot with Spot Arm',
     success: 'Move the toggle to the opposite state and hold it there.',
     reset: 'Return the toggle to its initial state and confirm that it moves freely.'
   },
   {
     id: 'light_bulb', name: 'Light bulb and socket', family: 'Precision', timeout: 120,
     image: '/images/tasks/lamp_3d.png',
+    video: `${VIDEO_BASE}/spot_light_bulb.mp4`, videoPlatform: 'Platform A · Spot with Spot Arm',
     success: 'Thread the bulb into the socket until it is seated.',
     reset: 'Remove the bulb, restore the documented starting pose, and inspect the thread.'
   },
   {
     id: 'thread_m8', name: 'M8 threaded fastener', family: 'Precision', timeout: 120,
     image: '/images/tasks/m8_3d.png',
+    video: `${VIDEO_BASE}/s010_m8_exp5.mp4`, videoPlatform: 'Platform B · LeRobot SO-101',
     success: 'Thread the bolt along the available length.',
     reset: 'Return the bolt to the documented initial engagement and check that the thread is clear.'
   },
   {
     id: 'thread_m30', name: 'M30 threaded fastener', family: 'Precision', timeout: 120,
     image: '/images/tasks/m30_3d.png',
+    video: `${VIDEO_BASE}/s010_m30_exp5.mp4`, videoPlatform: 'Platform B · LeRobot SO-101',
     success: 'Thread the bolt along the available length.',
     reset: 'Return the bolt to the documented initial engagement and check that the thread is clear.'
   },
   {
     id: 'peg_insertion', name: 'Threaded peg insertion', family: 'Precision', timeout: 120,
     image: '/images/tasks/peg_and_hole_3d.png',
+    video: `${VIDEO_BASE}/macao_peg_and_hole.mp4`, videoPlatform: 'Platform D · Macao prosthetic hand',
     success: 'Thread the free 8 mm peg into the empty socket until it is seated.',
     reset: 'Remove the peg and return it to the initial pose next to the empty socket.'
   },
   {
     id: 'button', name: 'Covered button', family: 'Composed assembly', timeout: 60,
     image: '/images/tasks/button_3d.png',
+    video: `${VIDEO_BASE}/spot_button.mp4`, videoPlatform: 'Platform A · Spot with Spot Arm',
     success: 'Open the cover and press the button.',
     reset: 'Close the cover and confirm that the button has returned.',
     stages: ['Open cover', 'Press button']
@@ -70,6 +81,7 @@ const tasks = [
   {
     id: 'lock', name: 'Lock and key', family: 'Composed assembly', timeout: 180,
     image: '/images/tasks/key_3d.png',
+    video: `${VIDEO_BASE}/spot_key.mp4`, videoPlatform: 'Platform A · Spot with Spot Arm',
     success: 'Grasp the key, insert it vertically, and rotate it to unlock.',
     reset: 'Remove the key, return the lock to its initial state, and restore the key pose.',
     stages: ['Grasp key', 'Insert key vertically', 'Rotate to unlock']
@@ -77,6 +89,7 @@ const tasks = [
   {
     id: 'drawer', name: 'Sliding drawer', family: 'Composed assembly', timeout: 120,
     image: '/images/tasks/box_3d.png',
+    video: `${VIDEO_BASE}/macao_box.mp4`, videoPlatform: 'Platform D · Macao prosthetic hand',
     success: 'Grasp the handle, pull the drawer open, and push it closed.',
     reset: 'Return the drawer to the fully closed initial position.',
     stages: ['Grasp handle', 'Pull open', 'Push closed']
@@ -84,6 +97,7 @@ const tasks = [
   {
     id: 'shock_absorber', name: 'Shock absorber', family: 'Composed assembly', timeout: 180,
     image: '/images/tasks/spring_3d.png',
+    video: `${VIDEO_BASE}/macao_spring.mp4`, videoPlatform: 'Platform D · Macao prosthetic hand',
     success: 'Grasp the pin, align it with the hole, and insert it fully.',
     reset: 'Remove the pin, restore its starting pose, and check both occupied board cells.',
     stages: ['Grasp pin', 'Align with hole', 'Insert fully']
@@ -475,6 +489,11 @@ onUnmounted(() => {
         <button class="secondary compact" type="button" @click="step = 'task'">Change task</button>
       </div>
 
+      <aside class="recording-reminder" role="note">
+        <strong>External recording required.</strong>
+        Record the complete trial with an external camera. Keep the board, robot and end-effector, and final task state visible.
+      </aside>
+
       <div class="trial-layout">
         <div class="task-reference">
           <img :src="withBase(currentTask.image)" :alt="`${currentTask.name} reference render`">
@@ -483,7 +502,12 @@ onUnmounted(() => {
             <div v-if="currentTask.stages"><dt>Stages</dt><dd>{{ currentTask.stages.join(' → ') }}</dd></div>
             <div><dt>Reset</dt><dd>{{ currentTask.reset }}</dd></div>
           </dl>
-          <a href="https://hiveboard-bench.github.io/#Simulation-Compatibility" target="_blank" rel="noreferrer">Open the interactive simulation ↗</a>
+          <div class="reference-links">
+            <a :href="currentTask.video" target="_blank" rel="noreferrer noopener">
+              Watch example trial <span>{{ currentTask.videoPlatform }}</span> ↗
+            </a>
+            <a href="https://hiveboard-bench.github.io/#Simulation-Compatibility" target="_blank" rel="noreferrer noopener">Open the interactive simulation ↗</a>
+          </div>
         </div>
 
         <div class="timer-panel" :class="timerState">
@@ -647,6 +671,8 @@ button.stop { border: 1px solid #9b2c2c; background: #9b2c2c; color: #fff; }
 button.large { min-width: 190px; min-height: 50px; font-size: 1rem; }
 button.compact { min-height: 36px; padding: .35rem .75rem; }
 .form-error { margin: 1rem 0 0; padding: .65rem .8rem; border-left: 3px solid #b42318; background: #fff1f0; color: #7a271a; font-size: .88rem; }
+.recording-reminder { margin: -0.25rem 0 1.25rem; padding: .8rem 1rem; border: 1px solid #d4b106; border-left: 4px solid #d4b106; background: #fffbe6; color: #4d3f00; font-size: .88rem; line-height: 1.5; }
+.recording-reminder strong { margin-right: .25rem; }
 .task-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .85rem; }
 .task-card { overflow: hidden; padding: 0; border: 1px solid #d6d9dd; border-radius: 2px; background: #fff; color: inherit; text-align: left; }
 .task-card:hover { border-color: #23527c; box-shadow: 0 2px 8px rgba(31, 41, 51, .08); }
@@ -662,7 +688,9 @@ button.compact { min-height: 36px; padding: .35rem .75rem; }
 .task-reference dl div { display: grid; grid-template-columns: 76px 1fr; gap: .75rem; padding: .58rem 0; border-bottom: 1px solid #e1e4e8; }
 .task-reference dt { font-size: .78rem; font-weight: 700; text-transform: uppercase; }
 .task-reference dd { margin: 0; font-size: .88rem; line-height: 1.55; }
-.task-reference a { font-size: .84rem; }
+.reference-links { display: grid; gap: .45rem; }
+.task-reference a { font-size: .84rem; font-weight: 600; }
+.task-reference a span { color: #57606a; font-size: .78rem; font-weight: 400; }
 .timer-panel { display: flex; min-height: 330px; padding: 1.25rem; border: 1px solid #cfd5db; align-items: center; justify-content: center; flex-direction: column; text-align: center; }
 .timer-panel.running { border-color: #23527c; background: #f7fbff; }
 .stopwatch, .countdown { color: #172b3a; font-variant-numeric: tabular-nums; line-height: 1; }
