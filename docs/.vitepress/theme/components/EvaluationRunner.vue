@@ -1,9 +1,20 @@
 <script setup>
 import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { withBase } from 'vitepress'
+import JSZip from 'jszip'
 
 const STORAGE_KEY = 'hiveboard-evaluation-runner-v1'
 const REQUIRED_TRIALS = 5
+const SCHEMA_VERSION = '1.0'
+const PROFILE_FIELDS = [
+  'evaluation_mode', 'lab_id', 'platform_id', 'robot_model', 'end_effector',
+  'control_method', 'board_orientation', 'hiveboard_version'
+]
+const CSV_COLUMNS = [
+  'trial_id', 'lab_id', 'platform_id', 'attachment_id', 'date', 'outcome',
+  'failure_cause', 'completion_time_s', 'n_attempts', 'n_regrasps',
+  'stage_reached', 'strategy', 'notes'
+]
 const VIDEO_BASE = 'https://github.com/hiveboard-bench/hiveboard-bench.github.io/releases/download/v1.0-v1.0-videos'
 
 const tasks = [
@@ -105,6 +116,7 @@ const tasks = [
 ]
 
 const emptySession = () => ({
+  submission_id: '',
   evaluation_mode: 'physical',
   lab_id: '',
   platform_id: '',
@@ -136,6 +148,11 @@ const elapsedMs = ref(0)
 const trialForm = reactive(emptyTrialForm())
 const error = ref('')
 const exampleVideoTask = ref(null)
+const profileInput = ref(null)
+const sessionInput = ref(null)
+const transferMessage = ref('')
+const transferIsError = ref(false)
+const packageState = ref('idle')
 const mounted = ref(false)
 let ticker = null
 let startMark = 0
@@ -149,6 +166,31 @@ const sessionReady = computed(() => [
   session.lab_id, session.platform_id, session.robot_model, session.end_effector,
   session.control_method, session.hiveboard_version, session.date
 ].every(value => String(value).trim()))
+const profileReady = computed(() => PROFILE_FIELDS.every(field => String(session[field] ?? '').trim()))
+const taskTrialCounts = computed(() => Object.fromEntries(
+  tasks.map(task => [task.id, trials.value.filter(trial => trial.attachment_id === task.id).length])
+))
+const validationChecks = computed(() => {
+  const identifierPattern = /^[a-z0-9_]+$/
+  const trialIds = trials.value.map(trial => Number(trial.trial_id))
+  const validRecords = trials.value.every(trial => {
+    const task = tasks.find(candidate => candidate.id === trial.attachment_id)
+    if (!task || !['success', 'fail', 'timeout', 'safety_stop'].includes(trial.outcome)) return false
+    if (!Number.isInteger(Number(trial.trial_id)) || Number(trial.n_attempts) < 1 || Number(trial.n_regrasps) < 0) return false
+    if (trial.outcome === 'success' && (String(trial.completion_time_s).trim() === '' || !(Number(trial.completion_time_s) >= 0))) return false
+    if (trial.outcome !== 'success' && !trial.failure_cause) return false
+    if (task.stages && (trial.stage_reached === '' || Number(trial.stage_reached) < 0 || Number(trial.stage_reached) > task.stages.length)) return false
+    return true
+  })
+  return [
+    { label: 'Session metadata complete', passed: sessionReady.value && identifierPattern.test(session.lab_id.trim()) && identifierPattern.test(session.platform_id.trim()) },
+    { label: `All ${tasks.length} conditions recorded`, passed: tasks.every(task => taskTrialCounts.value[task.id] > 0) },
+    { label: `${REQUIRED_TRIALS} trials recorded for every condition`, passed: tasks.every(task => taskTrialCounts.value[task.id] === REQUIRED_TRIALS) },
+    { label: 'Trial IDs are unique', passed: trialIds.length > 0 && new Set(trialIds).size === trialIds.length },
+    { label: 'All trial records are complete', passed: trials.value.length > 0 && validRecords }
+  ]
+})
+const submissionReady = computed(() => validationChecks.value.every(check => check.passed))
 
 function formatTime(ms) {
   const total = Math.max(0, ms) / 1000
@@ -178,6 +220,16 @@ function beep(frequency = 660, duration = 0.08) {
   } catch (_) {}
 }
 
+function ensureSubmissionId() {
+  if (session.submission_id) return session.submission_id
+  const datePart = (session.date || new Date().toISOString().slice(0, 10)).replaceAll('-', '')
+  const randomPart = typeof crypto !== 'undefined' && crypto.getRandomValues
+    ? Array.from(crypto.getRandomValues(new Uint8Array(3)), value => value.toString(16).padStart(2, '0')).join('')
+    : Math.random().toString(16).slice(2, 8).padEnd(6, '0')
+  session.submission_id = `${session.lab_id.trim()}_${session.platform_id.trim()}_${datePart}_${randomPart}`
+  return session.submission_id
+}
+
 function startSession() {
   error.value = ''
   if (!sessionReady.value) {
@@ -189,6 +241,7 @@ function startSession() {
     error.value = 'Laboratory ID and platform ID may contain only lowercase letters, numbers, and underscores.'
     return
   }
+  ensureSubmissionId()
   step.value = 'task'
 }
 
@@ -311,32 +364,31 @@ function csvEscape(value) {
   return /[",\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text
 }
 
-function downloadFile(filename, content, type) {
-  const blob = new Blob([content], { type })
+function downloadBlob(filename, blob) {
   const url = URL.createObjectURL(blob)
   const anchor = document.createElement('a')
   anchor.href = url
   anchor.download = filename
   anchor.click()
-  URL.revokeObjectURL(url)
+  window.setTimeout(() => URL.revokeObjectURL(url), 0)
 }
 
-function downloadCsv() {
-  const columns = [
-    'trial_id', 'lab_id', 'platform_id', 'attachment_id', 'date', 'outcome',
-    'failure_cause', 'completion_time_s', 'n_attempts', 'n_regrasps',
-    'stage_reached', 'strategy', 'notes'
-  ]
+function downloadFile(filename, content, type) {
+  downloadBlob(filename, new Blob([content], { type }))
+}
+
+function buildCsv() {
   const rows = trials.value
     .slice()
     .sort((a, b) => a.trial_id - b.trial_id)
-    .map(trial => columns.map(column => csvEscape(trial[column])).join(','))
-  downloadFile(`hiveboard_${session.lab_id}_${session.date}.csv`, [columns.join(','), ...rows].join('\n') + '\n', 'text/csv;charset=utf-8')
+    .map(trial => CSV_COLUMNS.map(column => csvEscape(trial[column])).join(','))
+  return [CSV_COLUMNS.join(','), ...rows].join('\n') + '\n'
 }
 
-function downloadPlatform() {
-  const content = `# HiveBoard platform description
+function buildPlatformMarkdown() {
+  return `# HiveBoard platform description
 
+- Submission ID: ${ensureSubmissionId()}
 - Evaluation mode: ${session.evaluation_mode}
 - Laboratory ID: ${session.lab_id}
 - Platform ID: ${session.platform_id}
@@ -347,7 +399,201 @@ function downloadPlatform() {
 - HiveBoard version or commit: ${session.hiveboard_version}
 - Evaluation date: ${session.date}
 `
-  downloadFile('platform.md', content, 'text/markdown;charset=utf-8')
+}
+
+function sessionPayload() {
+  return {
+    type: 'hiveboard-evaluation-session',
+    schema_version: SCHEMA_VERSION,
+    exported_at: new Date().toISOString(),
+    session: { ...session, submission_id: ensureSubmissionId() },
+    trials: trials.value.slice().sort((a, b) => a.trial_id - b.trial_id),
+    selected_task_id: selectedTaskId.value
+  }
+}
+
+function profilePayload() {
+  return {
+    type: 'hiveboard-platform-profile',
+    schema_version: SCHEMA_VERSION,
+    exported_at: new Date().toISOString(),
+    profile: Object.fromEntries(PROFILE_FIELDS.map(field => [field, session[field]]))
+  }
+}
+
+function videoFilename(trial) {
+  return `${ensureSubmissionId()}_trial_${String(trial.trial_id).padStart(3, '0')}_${trial.attachment_id}.mp4`
+}
+
+function buildRecordingInstructions() {
+  const rows = trials.value
+    .slice()
+    .sort((a, b) => a.trial_id - b.trial_id)
+    .map(trial => `| ${trial.trial_id} | \`${trial.attachment_id}\` | \`${videoFilename(trial)}\` |`)
+    .join('\n')
+  return `# External-camera recording instructions
+
+Submission ID: \`${ensureSubmissionId()}\`
+
+1. Start the external camera before starting the runner countdown.
+2. Record the complete trial without cuts.
+3. Keep the HiveBoard, robot and end-effector, and final task state visible.
+4. Save one MP4 file for each row in \`trials.csv\`.
+5. Rename each file exactly as listed below and place it in the package's \`videos/\` directory before submission.
+
+| Trial | Attachment | Required filename |
+| ---: | --- | --- |
+${rows}
+`
+}
+
+function manifestPayload() {
+  const sortedTrials = trials.value.slice().sort((a, b) => a.trial_id - b.trial_id)
+  return {
+    schema_version: SCHEMA_VERSION,
+    benchmark: 'HiveBoard',
+    submission_id: ensureSubmissionId(),
+    created_at: new Date().toISOString(),
+    evaluation: {
+      mode: session.evaluation_mode,
+      lab_id: session.lab_id,
+      platform_id: session.platform_id,
+      hiveboard_version: session.hiveboard_version,
+      board_orientation: session.board_orientation,
+      date: session.date,
+      required_trials_per_condition: REQUIRED_TRIALS
+    },
+    files: {
+      trials: 'trials.csv',
+      platform_description: 'platform.md',
+      session_backup: 'session.json',
+      recording_instructions: 'recording-instructions.md',
+      videos_directory: 'videos/'
+    },
+    summary: {
+      conditions_evaluated: new Set(sortedTrials.map(trial => trial.attachment_id)).size,
+      total_trials: sortedTrials.length,
+      successful_trials: sortedTrials.filter(trial => trial.outcome === 'success').length
+    },
+    recordings: sortedTrials.map(trial => ({
+      trial_id: trial.trial_id,
+      attachment_id: trial.attachment_id,
+      expected_filename: videoFilename(trial)
+    }))
+  }
+}
+
+function downloadCsv() {
+  downloadFile('trials.csv', buildCsv(), 'text/csv;charset=utf-8')
+}
+
+function downloadPlatform() {
+  downloadFile('platform.md', buildPlatformMarkdown(), 'text/markdown;charset=utf-8')
+}
+
+function downloadProfile() {
+  error.value = ''
+  transferMessage.value = ''
+  transferIsError.value = false
+  if (!profileReady.value) {
+    error.value = 'Complete the platform fields before exporting a profile.'
+    return
+  }
+  downloadFile(`hiveboard-profile_${session.platform_id}.json`, JSON.stringify(profilePayload(), null, 2) + '\n', 'application/json')
+}
+
+function downloadSession() {
+  transferIsError.value = false
+  if (!sessionReady.value) {
+    transferMessage.value = 'Complete the session metadata before exporting a session.'
+    transferIsError.value = true
+    return
+  }
+  downloadFile(`${ensureSubmissionId()}_session.json`, JSON.stringify(sessionPayload(), null, 2) + '\n', 'application/json')
+}
+
+function chooseProfileFile() {
+  profileInput.value?.click()
+}
+
+function chooseSessionFile() {
+  sessionInput.value?.click()
+}
+
+async function importProfile(event) {
+  error.value = ''
+  transferMessage.value = ''
+  transferIsError.value = false
+  const file = event.target.files?.[0]
+  event.target.value = ''
+  if (!file) return
+  if (trials.value.length) {
+    error.value = 'Start a new session before importing a different platform profile.'
+    return
+  }
+  try {
+    const data = JSON.parse(await file.text())
+    if (data.type !== 'hiveboard-platform-profile' || !data.profile) throw new Error('Invalid profile')
+    const imported = Object.fromEntries(PROFILE_FIELDS.map(field => [field, data.profile[field] ?? '']))
+    Object.assign(session, imported, { submission_id: '' })
+    transferMessage.value = `Profile loaded: ${session.platform_id || file.name}`
+  } catch (_) {
+    error.value = 'This file is not a valid HiveBoard platform profile.'
+  }
+}
+
+async function importSession(event) {
+  error.value = ''
+  transferMessage.value = ''
+  transferIsError.value = false
+  const file = event.target.files?.[0]
+  event.target.value = ''
+  if (!file) return
+  if (trials.value.length && !window.confirm('Replace the current session and its recorded trials?')) return
+  try {
+    const data = JSON.parse(await file.text())
+    if (data.type !== 'hiveboard-evaluation-session' || !data.session || !Array.isArray(data.trials)) throw new Error('Invalid session')
+    if (data.trials.some(trial => !tasks.some(task => task.id === trial.attachment_id))) throw new Error('Unknown attachment')
+    Object.assign(session, emptySession(), data.session)
+    trials.value = data.trials
+    selectedTaskId.value = tasks.some(task => task.id === data.selected_task_id) ? data.selected_task_id : tasks[0].id
+    resetTimer()
+    if (sessionReady.value) ensureSubmissionId()
+    step.value = trials.value.length ? 'review' : (sessionReady.value ? 'task' : 'setup')
+    transferMessage.value = `Session loaded: ${session.submission_id || file.name}`
+  } catch (_) {
+    error.value = 'This file is not a valid HiveBoard evaluation session.'
+  }
+}
+
+async function downloadPackage() {
+  transferMessage.value = ''
+  transferIsError.value = false
+  if (!submissionReady.value) {
+    transferMessage.value = 'Complete every readiness check before creating the submission package.'
+    transferIsError.value = true
+    return
+  }
+  packageState.value = 'building'
+  try {
+    const submissionId = ensureSubmissionId()
+    const zip = new JSZip()
+    const root = zip.folder(submissionId)
+    root.file('trials.csv', buildCsv())
+    root.file('platform.md', buildPlatformMarkdown())
+    root.file('manifest.json', JSON.stringify(manifestPayload(), null, 2) + '\n')
+    root.file('session.json', JSON.stringify(sessionPayload(), null, 2) + '\n')
+    root.file('recording-instructions.md', buildRecordingInstructions())
+    root.folder('videos').file('README.md', 'Place the external-camera MP4 files listed in ../recording-instructions.md in this directory before submission.\n')
+    const blob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 6 } })
+    downloadBlob(`${submissionId}.zip`, blob)
+    transferMessage.value = 'Submission package created. Add the named external-camera videos to its videos directory before submission.'
+  } catch (_) {
+    transferMessage.value = 'The submission package could not be created. Export the session and try again.'
+    transferIsError.value = true
+  } finally {
+    packageState.value = 'idle'
+  }
 }
 
 function newSession() {
@@ -357,6 +603,9 @@ function newSession() {
   trials.value = []
   selectedTaskId.value = tasks[0].id
   step.value = 'setup'
+  transferMessage.value = ''
+  transferIsError.value = false
+  packageState.value = 'idle'
   resetTimer()
   window.localStorage.removeItem(STORAGE_KEY)
 }
@@ -391,6 +640,7 @@ onMounted(() => {
     if (Array.isArray(saved?.trials)) trials.value = saved.trials
     if (tasks.some(task => task.id === saved?.selectedTaskId)) selectedTaskId.value = saved.selectedTaskId
     if (['setup', 'task', 'trial', 'review'].includes(saved?.step)) step.value = saved.step
+    if (trials.value.length && sessionReady.value) ensureSubmissionId()
   } catch (_) {}
   mounted.value = true
   window.addEventListener('keydown', handleKey)
@@ -431,6 +681,24 @@ onUnmounted(() => {
         <p>Required fields are marked with an asterisk. These values are reused in every trial row.</p>
       </div>
 
+      <div class="transfer-tools">
+        <div>
+          <strong>Platform profile</strong>
+          <span>Reuse the same robot and interface configuration.</span>
+          <div>
+            <button class="secondary compact" type="button" @click="chooseProfileFile">Import profile</button>
+            <button class="secondary compact" type="button" :disabled="!profileReady" @click="downloadProfile">Export profile</button>
+          </div>
+        </div>
+        <div>
+          <strong>Evaluation session</strong>
+          <span>Continue a session exported from another browser.</span>
+          <div><button class="secondary compact" type="button" @click="chooseSessionFile">Import session</button></div>
+        </div>
+      </div>
+      <input ref="profileInput" class="visually-hidden" type="file" accept="application/json,.json" @change="importProfile">
+      <input ref="sessionInput" class="visually-hidden" type="file" accept="application/json,.json" @change="importSession">
+
       <div class="form-grid">
         <label>Evaluation mode *
           <select v-model="session.evaluation_mode">
@@ -469,6 +737,7 @@ onUnmounted(() => {
         </label>
       </div>
       <p v-if="error" class="form-error" role="alert">{{ error }}</p>
+      <p v-if="transferMessage" class="form-success" role="status">{{ transferMessage }}</p>
       <div class="actions"><button class="primary" type="button" @click="startSession">Select task</button></div>
     </section>
 
@@ -620,6 +889,10 @@ onUnmounted(() => {
         <button class="primary" type="button" @click="step = 'task'">Select a task</button>
       </div>
       <template v-else>
+        <div class="submission-identity">
+          <span>Submission ID</span>
+          <code>{{ session.submission_id }}</code>
+        </div>
         <div class="review-stats">
           <div><strong>{{ trials.length }}</strong><span>Total trials</span></div>
           <div><strong>{{ trials.filter(t => t.outcome === 'success').length }}</strong><span>Successful</span></div>
@@ -640,10 +913,40 @@ onUnmounted(() => {
         <div class="actions split wrap">
           <div><button class="secondary" type="button" @click="step = 'task'">Record another task</button></div>
           <div class="download-actions">
+            <button class="secondary" type="button" @click="downloadSession">Export session</button>
             <button class="secondary" type="button" @click="downloadPlatform">Download platform.md</button>
-            <button class="primary" type="button" @click="downloadCsv">Download trials.csv</button>
+            <button class="secondary" type="button" @click="downloadCsv">Download trials.csv</button>
           </div>
         </div>
+
+        <section class="readiness-panel" aria-labelledby="readiness-title">
+          <div class="readiness-heading">
+            <div>
+              <p class="eyebrow">Submission package</p>
+              <h3 id="readiness-title">Readiness checks</h3>
+            </div>
+            <strong :class="submissionReady ? 'ready' : 'incomplete'">{{ submissionReady ? 'Ready' : 'Incomplete' }}</strong>
+          </div>
+          <ul class="validation-list">
+            <li v-for="check in validationChecks" :key="check.label" :class="{ passed: check.passed }">
+              <span aria-hidden="true">{{ check.passed ? '✓' : '—' }}</span>{{ check.label }}
+            </li>
+          </ul>
+          <div class="condition-progress">
+            <div v-for="task in tasks" :key="task.id" :class="{ complete: taskTrialCounts[task.id] === REQUIRED_TRIALS }">
+              <span>{{ task.name }}</span>
+              <strong>{{ taskTrialCounts[task.id] }}/{{ REQUIRED_TRIALS }}</strong>
+            </div>
+          </div>
+          <p>The ZIP contains <code>trials.csv</code>, <code>platform.md</code>, <code>manifest.json</code>, a transferable session backup, and the required filename for every external-camera recording.</p>
+          <p v-if="transferMessage" :class="transferIsError ? 'form-error' : 'form-success'" role="status">{{ transferMessage }}</p>
+          <div class="package-action">
+            <span v-if="!submissionReady">Complete all readiness checks to enable the final package.</span>
+            <button class="primary" type="button" :disabled="!submissionReady || packageState === 'building'" @click="downloadPackage">
+              {{ packageState === 'building' ? 'Creating package…' : 'Download submission package (.zip)' }}
+            </button>
+          </div>
+        </section>
       </template>
       <div class="new-session"><button class="text-button" type="button" @click="newSession">Start a new session</button></div>
     </section>
@@ -683,6 +986,12 @@ onUnmounted(() => {
 .runner h2 { margin: 0; padding: 0; border: 0; font-size: 1.35rem; }
 .runner h3 { margin-top: 0; font-size: 1.08rem; }
 .trial-heading p:last-child { margin: .35rem 0 0; color: #57606a; }
+.transfer-tools { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .8rem; margin-bottom: 1.25rem; }
+.transfer-tools > div { display: grid; gap: .35rem; padding: .85rem 1rem; border: 1px solid #dfe2e5; background: #fafbfc; }
+.transfer-tools strong { font-size: .88rem; }
+.transfer-tools span { color: #57606a; font-size: .78rem; }
+.transfer-tools > div > div { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .3rem; }
+.visually-hidden { position: absolute; overflow: hidden; width: 1px; height: 1px; padding: 0; border: 0; clip: rect(0 0 0 0); white-space: nowrap; }
 .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem 1.25rem; }
 label { display: flex; flex-direction: column; gap: .38rem; color: #34414d; font-size: .88rem; font-weight: 600; }
 label span { color: #6e7781; font-size: .76rem; font-weight: 400; }
@@ -698,12 +1007,14 @@ button { cursor: pointer; }
 button.primary, button.secondary, button.stop { min-height: 42px; padding: .55rem 1rem; border-radius: 2px; font: inherit; font-size: .9rem; font-weight: 600; }
 button.primary { border: 1px solid #23527c; background: #23527c; color: #fff; }
 button.primary:hover { background: #183b5b; }
+button.primary:disabled, button.secondary:disabled { border-color: #c7cdd3; background: #e9ecef; color: #7a838c; cursor: not-allowed; }
 button.secondary { border: 1px solid #aeb6bf; background: #fff; color: #263746; }
 button.secondary:hover { background: #f3f4f6; }
 button.stop { border: 1px solid #9b2c2c; background: #9b2c2c; color: #fff; }
 button.large { min-width: 190px; min-height: 50px; font-size: 1rem; }
 button.compact { min-height: 36px; padding: .35rem .75rem; }
 .form-error { margin: 1rem 0 0; padding: .65rem .8rem; border-left: 3px solid #b42318; background: #fff1f0; color: #7a271a; font-size: .88rem; }
+.form-success { margin: 1rem 0 0; padding: .65rem .8rem; border-left: 3px solid #1a7f37; background: #f0fff4; color: #14532d; font-size: .88rem; }
 .recording-reminder { margin: -0.25rem 0 1.25rem; padding: .8rem 1rem; border: 1px solid #d4b106; border-left: 4px solid #d4b106; background: #fffbe6; color: #4d3f00; font-size: .88rem; line-height: 1.5; }
 .recording-reminder strong { margin-right: .25rem; }
 .task-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .85rem; }
@@ -754,28 +1065,52 @@ button.compact { min-height: 36px; padding: .35rem .75rem; }
 .review-stats div:last-child { border-right: 0; }
 .review-stats strong { font-size: 1.5rem; }
 .review-stats span { color: #6e7781; font-size: .78rem; }
+.submission-identity { display: flex; margin-bottom: 1rem; padding: .75rem 1rem; border: 1px solid #dfe2e5; align-items: center; justify-content: space-between; gap: 1rem; background: #fafbfc; }
+.submission-identity span { color: #57606a; font-size: .78rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+.submission-identity code { overflow-wrap: anywhere; font-size: .82rem; }
 .table-wrap { overflow-x: auto; border: 1px solid #dfe2e5; }
 .table-wrap table { display: table; width: 100%; margin: 0; border: 0; font-size: .84rem; }
 .table-wrap th, .table-wrap td { white-space: nowrap; }
 .text-button { padding: .2rem; border: 0; background: transparent; color: #23527c; font: inherit; font-size: .82rem; text-decoration: underline; }
 .empty-state { padding: 2rem; border: 1px dashed #b8c0c8; text-align: center; }
+.readiness-panel { margin-top: 1.5rem; padding: 1.25rem; border: 1px solid #cfd5db; background: #fafbfc; }
+.readiness-heading { display: flex; margin-bottom: 1rem; align-items: flex-start; justify-content: space-between; gap: 1rem; }
+.readiness-heading h3 { margin: 0; }
+.readiness-heading > strong { padding: .25rem .55rem; border: 1px solid; border-radius: 999px; font-size: .75rem; }
+.readiness-heading > strong.ready { border-color: #75b798; background: #ecfdf3; color: #146c43; }
+.readiness-heading > strong.incomplete { border-color: #c7cdd3; background: #f1f3f5; color: #57606a; }
+.validation-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .45rem 1rem; margin: 0 0 1rem; padding: 0; list-style: none; }
+.validation-list li { display: flex; align-items: center; gap: .45rem; color: #6e7781; font-size: .84rem; }
+.validation-list li > span { display: inline-grid; width: 20px; height: 20px; border: 1px solid #c7cdd3; border-radius: 50%; place-items: center; font-size: .72rem; }
+.validation-list li.passed { color: #146c43; }
+.validation-list li.passed > span { border-color: #75b798; background: #ecfdf3; }
+.condition-progress { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 1rem 0; border-top: 1px solid #dfe2e5; border-left: 1px solid #dfe2e5; }
+.condition-progress > div { display: flex; min-width: 0; padding: .55rem .65rem; border-right: 1px solid #dfe2e5; border-bottom: 1px solid #dfe2e5; align-items: center; justify-content: space-between; gap: .5rem; background: #fff; }
+.condition-progress span { overflow: hidden; color: #57606a; font-size: .76rem; text-overflow: ellipsis; white-space: nowrap; }
+.condition-progress strong { color: #7a271a; font-size: .76rem; font-variant-numeric: tabular-nums; }
+.condition-progress .complete strong { color: #146c43; }
+.readiness-panel > p { color: #57606a; font-size: .82rem; line-height: 1.55; }
+.package-action { display: flex; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid #dfe2e5; align-items: center; justify-content: space-between; gap: 1rem; }
+.package-action > span { color: #6e7781; font-size: .78rem; }
 .new-session { margin-top: 1.4rem; padding-top: .8rem; border-top: 1px solid #e5e7eb; text-align: right; }
 
 @media (max-width: 900px) {
   .task-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .trial-layout { grid-template-columns: 1fr; }
+  .condition-progress { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 640px) {
   .runner-section { padding: 1rem; }
   .runner-steps button { padding: .7rem .25rem; font-size: .74rem; }
   .section-heading, .trial-heading { flex-direction: column; gap: .7rem; }
-  .form-grid, .task-grid { grid-template-columns: 1fr; }
+  .form-grid, .task-grid, .transfer-tools, .validation-list, .condition-progress { grid-template-columns: 1fr; }
   .wide { grid-column: auto; }
   .actions.split { align-items: stretch; flex-direction: column; }
   .download-actions { flex-direction: column; }
   .review-stats { grid-template-columns: 1fr; }
   .review-stats div { border-right: 0; border-bottom: 1px solid #dfe2e5; }
   .review-stats div:last-child { border-bottom: 0; }
+  .submission-identity, .package-action { align-items: stretch; flex-direction: column; }
   .video-modal-backdrop { padding: .75rem; }
 }
 </style>

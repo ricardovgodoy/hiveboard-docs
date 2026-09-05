@@ -2,7 +2,7 @@
 
 Use the supplied spreadsheet during experiments and the CSV for scripts or data exchange.
 
-The [Evaluation Runner](/benchmark/evaluation-runner) provides a guided timer and produces the same CSV format directly in the browser.
+The [Evaluation Runner](/benchmark/evaluation-runner) provides a guided timer and produces the same CSV format directly in the browser. It can also save transferable sessions, validate a complete evaluation, and generate the final submission package.
 
 <ul class="doc-links">
   <li><a href="https://github.com/EESC-LabRoM/HiveBoard/raw/main/Documentation/trials.xlsx"><strong>Download the XLSX template</strong></a> — for manual entry, with all trial rows pre-populated.</li>
