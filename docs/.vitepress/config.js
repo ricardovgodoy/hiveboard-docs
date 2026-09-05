@@ -40,6 +40,7 @@ export default defineConfig({
       {
         text: 'Benchmark',
         items: [
+          { text: 'Evaluation Runner', link: '/benchmark/evaluation-runner' },
           { text: 'Evaluation Protocol', link: '/benchmark/protocol' },
           { text: 'Trial Logging', link: '/benchmark/logging' },
           { text: 'Reporting Results', link: '/benchmark/results' }

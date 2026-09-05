@@ -11,6 +11,7 @@ This documentation contains the instructions required to reproduce the hardware,
 - [3D printing](/hardware/printing)
 - [Assembly and mounting](/hardware/assembly)
 - [Module reference](/hardware/modules)
+- [Evaluation Runner](/benchmark/evaluation-runner)
 - [Evaluation protocol](/benchmark/protocol)
 - [Simulation assets](/simulation/assets)
 
