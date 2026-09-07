@@ -1,6 +1,6 @@
 # Assemble and mount
 
-Assembly has two goals: each mechanism must move through its intended range, and every attachment must remain securely seated while it is manipulated.
+Check that each mechanism moves through its full range and remains seated during manipulation.
 
 ## Before assembly
 
@@ -67,4 +67,3 @@ High-gain or jittering commands can damage printed mechanisms or loosen press-fi
 :::
 
 Continue with the [evaluation protocol](/benchmark/protocol).
-

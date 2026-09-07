@@ -11,9 +11,9 @@ import EvaluationRunner from '../.vitepress/theme/components/EvaluationRunner.vu
 
 # Evaluation Runner
 
-Use this page while running a HiveBoard evaluation. It guides each trial, applies the task timeout and success criteria, and exports a CSV compatible with the benchmark logging format. Session data remains in this browser and is not submitted to the organizers.
+Record HiveBoard trials using the timer and trial form below. Select an attachment, review its success criterion, and start the countdown. Begin the task when the countdown reaches zero. After each trial, enter the outcome, attempts, and regrasps. The evaluator determines success; the runner records time and stops at the task timeout.
 
-Platform profiles can be reused across evaluations, and session backups can be imported on another computer. After all 13 conditions have five trials, the runner validates the records and creates a submission package with the result files and standardized external-camera video filenames.
+Records are saved in this browser. Export the session to continue on another computer, or download the trial log as CSV. A complete submission requires **five trials for each of the 13 conditions (65 trials)**. The results ZIP becomes available once all trial entries and required setup details are complete. Attach the setup photograph here or add it to the extracted folder, then add the 65 recordings before submission. Files are not uploaded to the organizers by this page.
 
 <ClientOnly>
   <EvaluationRunner />

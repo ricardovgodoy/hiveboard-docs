@@ -2,14 +2,15 @@
 
 This protocol characterizes robot-side performance across HiveBoard attachments. It is suitable for teleoperated arms, wearable interfaces, exoskeletons, and autonomous policies, provided that the control mode is held constant across the recorded trials being compared.
 
-The canonical protocol is maintained as [`Documentation/PROTOCOL.md`](https://github.com/EESC-LabRoM/HiveBoard/blob/main/Documentation/PROTOCOL.md).
+The source protocol is available in [`Documentation/PROTOCOL.md`](https://github.com/EESC-LabRoM/HiveBoard/blob/main/Documentation/PROTOCOL.md). Submissions through this documentation require all 13 conditions, with five recorded trials per condition (65 trials).
 
 ## Required material
 
 - One printed HiveBoard base.
-- The selected attachment set, including the four-piece friction-ring accessory when the ball-valve ring condition is evaluated.
+- The complete attachment set, including the four-piece friction-ring accessory for the ball-valve ring condition.
 - One manipulation platform: an end-effector plus the system that positions and commands it.
-- The supplied trial logging template.
+- The [Evaluation Runner](/benchmark/evaluation-runner) or supplied trial logging template.
+- An external camera with a view of the board and end-effector.
 
 ## Prepare the setup
 
@@ -19,6 +20,7 @@ The canonical protocol is maintained as [`Documentation/PROTOCOL.md`](https://gi
 4. Position the platform so that the board is not moved during a trial.
 5. Save a photograph of the complete setup as `setup.jpg`.
 6. Create `platform.md` with the end-effector, control interface or policy, mounting orientation, control mode, and relevant calibration notes.
+7. Record the printer, material, print settings, and post-processing. The runner includes these fields in `platform.md`.
 
 ## Familiarization
 
@@ -32,7 +34,7 @@ For each platform and attachment pair:
 
 1. Run **five recorded trials**.
 2. Start the end-effector from the same neutral pose.
-3. Start timing when the first motion toward the attachment is commanded.
+3. Start the external camera before the countdown. When using the runner, command the first task motion when the countdown reaches zero; this is when timing starts. For manual logging, start timing with the first commanded task motion.
 4. Stop timing when the success criterion is met, a safety event occurs, or the timeout expires.
 5. Reset the mechanism and neutral pose before the next trial.
 
@@ -87,12 +89,12 @@ Do not silently replace the affected row with a rerun.
 - [ ] Printing parameters and post-processing are recorded.
 - [ ] All attachments are fully seated.
 - [ ] Familiarization is complete for every attachment.
-- [ ] Five recorded trials exist for each selected condition.
+- [ ] Five recorded trials exist for all 13 conditions (65 trials total).
 - [ ] Timeouts and task criteria match the module reference.
 - [ ] Every unsuccessful trial has one failure cause.
 - [ ] Attempts, regrasps, and strategy are present on every row.
 - [ ] Composed tasks include `stage_reached`.
 - [ ] Broken or reseated parts are described.
 - [ ] `setup.jpg` and `platform.md` accompany the log.
+- [ ] One external-camera recording accompanies each trial, using the filenames in `recording-instructions.md`.
 - [ ] No operator names or personal identifiers appear in the files.
-

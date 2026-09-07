@@ -65,4 +65,4 @@ trial_id,lab_id,platform_id,attachment_id,date,outcome,failure_cause,completion_
 | Blank stage on a failed composed task | Record the last completed stage, including `0` |
 | Replacing a damaged-part trial with a clean rerun | Preserve the trial and explain the event in `notes` |
 
-See the canonical [column-by-column instructions](https://github.com/EESC-LabRoM/HiveBoard/blob/main/Documentation/HOW_TO_FILL_TRIALS.md) for the full reference.
+See the [column-by-column instructions](https://github.com/EESC-LabRoM/HiveBoard/blob/main/Documentation/HOW_TO_FILL_TRIALS.md) for the full reference.

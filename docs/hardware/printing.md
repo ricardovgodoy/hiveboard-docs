@@ -1,6 +1,6 @@
 # Print the parts
 
-The canonical printable files are stored in the [`STL/` directory](https://github.com/EESC-LabRoM/HiveBoard/tree/main/STL). Editable sources are available separately in [`CAD/`](https://github.com/EESC-LabRoM/HiveBoard/tree/main/CAD).
+The printable files are stored in the [`STL/` directory](https://github.com/EESC-LabRoM/HiveBoard/tree/main/STL). Editable sources are available separately in [`CAD/`](https://github.com/EESC-LabRoM/HiveBoard/tree/main/CAD).
 
 ::: tip Check the fit first
 Before printing the full set, print one honeycomb cell and one attachment base. Verify that the attachment seats fully, remains stable during manipulation, and can be removed without damaging either part.
@@ -79,4 +79,3 @@ Do not lubricate or modify friction surfaces without reporting the change. These
 | Other mechanisms | [`STL/`](https://github.com/EESC-LabRoM/HiveBoard/tree/main/STL) |
 
 The repository README also links to the current module-specific printing guide.
-

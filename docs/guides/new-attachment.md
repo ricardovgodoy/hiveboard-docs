@@ -4,7 +4,7 @@ An attachment is part of the benchmark only when its physical geometry, simulati
 
 ## 1. Reuse the mounting interface
 
-Start from the canonical press-fit geometry in the CAD repository. Do not redraw the interface from measurements when an editable source is available.
+Start from the existing press-fit geometry in the CAD repository. Do not redraw the interface from measurements when an editable source is available.
 
 The attachment should:
 
@@ -73,7 +73,6 @@ Include physical and simulation evidence in the pull request:
 
 - assembled-module image;
 - manual actuation through the full range;
-- successful fit in the canonical base;
+- successful fit in the HiveBoard base;
 - simulation load test; and
 - one completed example trial row.
-

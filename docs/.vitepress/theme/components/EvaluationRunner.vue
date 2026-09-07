@@ -8,7 +8,8 @@ const REQUIRED_TRIALS = 5
 const SCHEMA_VERSION = '1.0'
 const PROFILE_FIELDS = [
   'evaluation_mode', 'lab_id', 'platform_id', 'robot_model', 'end_effector',
-  'control_method', 'board_orientation', 'hiveboard_version'
+  'control_method', 'board_orientation', 'hiveboard_version',
+  'printer', 'material', 'print_settings', 'post_processing', 'calibration_notes'
 ]
 const CSV_COLUMNS = [
   'trial_id', 'lab_id', 'platform_id', 'attachment_id', 'date', 'outcome',
@@ -125,6 +126,11 @@ const emptySession = () => ({
   control_method: '',
   board_orientation: 'horizontal',
   hiveboard_version: '',
+  printer: '',
+  material: '',
+  print_settings: '',
+  post_processing: '',
+  calibration_notes: '',
   date: ''
 })
 
@@ -154,40 +160,70 @@ const transferMessage = ref('')
 const transferIsError = ref(false)
 const packageState = ref('idle')
 const mounted = ref(false)
+const setupPhoto = ref(null)
+const storageError = ref('')
 let ticker = null
 let startMark = 0
+let countdownEnd = 0
 
 const currentTask = computed(() => tasks.find(task => task.id === selectedTaskId.value) || tasks[0])
 const currentTrials = computed(() => trials.value.filter(trial => trial.attachment_id === currentTask.value.id))
 const currentTrialNumber = computed(() => Math.min(currentTrials.value.length + 1, REQUIRED_TRIALS))
 const elapsedSeconds = computed(() => elapsedMs.value / 1000)
 const displayTime = computed(() => formatTime(elapsedMs.value))
-const sessionReady = computed(() => [
-  session.lab_id, session.platform_id, session.robot_model, session.end_effector,
-  session.control_method, session.hiveboard_version, session.date
-].every(value => String(value).trim()))
-const profileReady = computed(() => PROFILE_FIELDS.every(field => String(session[field] ?? '').trim()))
+const hasText = value => typeof value === 'string' && value.trim().length > 0
+const isNumber = value => (typeof value === 'number' || hasText(value)) && Number.isFinite(Number(value))
+const isCount = (value, minimum) => isNumber(value) && Number.isInteger(Number(value)) && Number(value) >= minimum
+const validDate = value => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(Date.parse(value)) && new Date(value).toISOString().slice(0, 10) === value
+function validSetup(value) {
+  return ['lab_id', 'platform_id', 'robot_model', 'end_effector', 'control_method', 'hiveboard_version'].every(field => hasText(value[field])) &&
+    ['lab_id', 'platform_id'].every(field => /^[a-z0-9_]+$/.test(value[field])) &&
+    ['physical', 'simulation'].includes(value.evaluation_mode) && ['horizontal', 'vertical'].includes(value.board_orientation)
+}
+const sessionReady = computed(() => validSetup(session) && validDate(session.date))
+const profileReady = computed(() => validSetup(session))
+const metadataComplete = computed(() => sessionReady.value && (session.evaluation_mode !== 'physical' ||
+  ['printer', 'material', 'print_settings', 'post_processing'].every(field => hasText(session[field]))))
+const trialPending = computed(() => ['running', 'countdown', 'form'].includes(timerState.value))
+
+function recordErrors(trial, setup = session) {
+  if (!trial || typeof trial !== 'object') return ['Invalid trial record.']
+  const issues = []
+  const task = tasks.find(candidate => candidate.id === trial.attachment_id)
+  if (!task) return ['Unknown attachment.']
+  if (!isCount(trial.trial_id, 1)) issues.push('Trial ID must be a positive integer.')
+  if (!['success', 'fail', 'timeout', 'safety_stop'].includes(trial.outcome)) issues.push('Select a trial outcome.')
+  if (!isCount(trial.n_attempts, 1)) issues.push('Attempts must be an integer of at least 1.')
+  if (!isCount(trial.n_regrasps, 0)) issues.push('Regrasps must be a non-negative integer.')
+  if (!['prehensile', 'non_prehensile'].includes(trial.strategy)) issues.push('Select a manipulation strategy.')
+  if (trial.outcome === 'success') {
+    if (!isNumber(trial.completion_time_s) || Number(trial.completion_time_s) < 0 || Number(trial.completion_time_s) > task.timeout) issues.push(`Completion time must be between 0 and ${task.timeout} s.`)
+    if (trial.failure_cause !== '') issues.push('Successful trials must have a blank failure cause.')
+  } else {
+    if (!['grasp_geometry', 'kinematic_limit', 'perception', 'slip', 'force_limit', 'control_precision', 'other'].includes(trial.failure_cause)) issues.push('Select a primary failure cause.')
+    if (trial.completion_time_s !== '') issues.push('Unsuccessful trials must have a blank completion time.')
+    if (trial.failure_cause === 'other' && !hasText(trial.notes)) issues.push('Explain the failure in Notes.')
+  }
+  if (task.stages) {
+    if (!isCount(trial.stage_reached, 0) || Number(trial.stage_reached) > task.stages.length) issues.push('Enter the last completed stage.')
+    else if (trial.outcome === 'success' && Number(trial.stage_reached) !== task.stages.length) issues.push('Success requires completion of every stage.')
+  } else if (trial.stage_reached !== '') issues.push('Leave stage blank for this task.')
+  if (typeof trial.notes !== 'string') issues.push('Notes must be text.')
+  if (!validDate(trial.date) || trial.date !== setup.date || trial.lab_id !== setup.lab_id || trial.platform_id !== setup.platform_id) issues.push('Trial date and platform identifiers must match the session.')
+  return issues
+}
+const invalidRecords = computed(() => trials.value.flatMap(trial => recordErrors(trial).map(message => `Trial ${trial?.trial_id ?? '?'}: ${message}`)))
 const taskTrialCounts = computed(() => Object.fromEntries(
   tasks.map(task => [task.id, trials.value.filter(trial => trial.attachment_id === task.id).length])
 ))
 const validationChecks = computed(() => {
-  const identifierPattern = /^[a-z0-9_]+$/
   const trialIds = trials.value.map(trial => Number(trial.trial_id))
-  const validRecords = trials.value.every(trial => {
-    const task = tasks.find(candidate => candidate.id === trial.attachment_id)
-    if (!task || !['success', 'fail', 'timeout', 'safety_stop'].includes(trial.outcome)) return false
-    if (!Number.isInteger(Number(trial.trial_id)) || Number(trial.n_attempts) < 1 || Number(trial.n_regrasps) < 0) return false
-    if (trial.outcome === 'success' && (String(trial.completion_time_s).trim() === '' || !(Number(trial.completion_time_s) >= 0))) return false
-    if (trial.outcome !== 'success' && !trial.failure_cause) return false
-    if (task.stages && (trial.stage_reached === '' || Number(trial.stage_reached) < 0 || Number(trial.stage_reached) > task.stages.length)) return false
-    return true
-  })
   return [
-    { label: 'Session metadata complete', passed: sessionReady.value && identifierPattern.test(session.lab_id.trim()) && identifierPattern.test(session.platform_id.trim()) },
+    { label: 'Experimental setup recorded', passed: metadataComplete.value },
     { label: `All ${tasks.length} conditions recorded`, passed: tasks.every(task => taskTrialCounts.value[task.id] > 0) },
     { label: `${REQUIRED_TRIALS} trials recorded for every condition`, passed: tasks.every(task => taskTrialCounts.value[task.id] === REQUIRED_TRIALS) },
     { label: 'Trial IDs are unique', passed: trialIds.length > 0 && new Set(trialIds).size === trialIds.length },
-    { label: 'All trial records are complete', passed: trials.value.length > 0 && validRecords }
+    { label: 'Trial entries valid', passed: trials.value.length > 0 && invalidRecords.value.length === 0 }
   ]
 })
 const submissionReady = computed(() => validationChecks.value.every(check => check.passed))
@@ -232,6 +268,8 @@ function ensureSubmissionId() {
 
 function startSession() {
   error.value = ''
+  session.lab_id = session.lab_id.trim()
+  session.platform_id = session.platform_id.trim()
   if (!sessionReady.value) {
     error.value = 'Complete all required session fields before continuing.'
     return
@@ -246,12 +284,15 @@ function startSession() {
 }
 
 function openTask(taskId) {
+  if (trialPending.value || !sessionReady.value) return
   selectedTaskId.value = taskId
   resetTimer()
   step.value = 'trial'
 }
 
 function startCountdown() {
+  if (timerState.value !== 'idle' || !sessionReady.value) return
+  ensureSubmissionId()
   if (currentTrials.value.length >= REQUIRED_TRIALS) {
     step.value = 'review'
     return
@@ -259,10 +300,11 @@ function startCountdown() {
   error.value = ''
   countdown.value = 5
   timerState.value = 'countdown'
+  countdownEnd = performance.now() + 5000
   beep(520)
   clearTicker()
   ticker = window.setInterval(() => {
-    countdown.value -= 1
+    countdown.value = Math.max(0, Math.ceil((countdownEnd - performance.now()) / 1000))
     if (countdown.value > 0) {
       beep(520)
     } else {
@@ -281,6 +323,7 @@ function startTimer() {
 }
 
 function updateTimer() {
+  if (timerState.value !== 'running') return
   elapsedMs.value = performance.now() - startMark
   if (elapsedSeconds.value >= currentTask.value.timeout) {
     elapsedMs.value = currentTask.value.timeout * 1000
@@ -292,14 +335,16 @@ function finishTiming(timedOut = false) {
   if (timerState.value !== 'running') return
   updateTimerOnce()
   clearTicker()
+  timedOut = timedOut || elapsedSeconds.value >= currentTask.value.timeout
   if (timedOut) elapsedMs.value = currentTask.value.timeout * 1000
+  startMark = 0
   Object.assign(trialForm, emptyTrialForm(), { outcome: timedOut ? 'timeout' : 'success' })
   timerState.value = 'form'
   beep(timedOut ? 360 : 740, 0.18)
 }
 
 function updateTimerOnce() {
-  if (startMark) elapsedMs.value = Math.min(performance.now() - startMark, currentTask.value.timeout * 1000)
+  if (timerState.value === 'running') elapsedMs.value = Math.min(performance.now() - startMark, currentTask.value.timeout * 1000)
 }
 
 function cancelCountdown() {
@@ -320,6 +365,7 @@ function resetTimer() {
 
 function saveTrial() {
   error.value = ''
+  if (timerState.value !== 'form' || !sessionReady.value || currentTrials.value.length >= REQUIRED_TRIALS) return
   const unsuccessful = trialForm.outcome !== 'success'
   if (unsuccessful && !trialForm.failure_cause) {
     error.value = 'Select one primary failure cause.'
@@ -329,13 +375,8 @@ function saveTrial() {
     error.value = 'Record the last completed stage, including 0 if no stage was completed.'
     return
   }
-  if (Number(trialForm.n_attempts) < 1 || Number(trialForm.n_regrasps) < 0) {
-    error.value = 'Attempts must be at least 1 and regrasps cannot be negative.'
-    return
-  }
-
   const nextId = trials.value.reduce((max, trial) => Math.max(max, Number(trial.trial_id)), 0) + 1
-  trials.value.push({
+  const record = {
     trial_id: nextId,
     lab_id: session.lab_id.trim(),
     platform_id: session.platform_id.trim(),
@@ -344,12 +385,18 @@ function saveTrial() {
     outcome: trialForm.outcome,
     failure_cause: unsuccessful ? trialForm.failure_cause : '',
     completion_time_s: trialForm.outcome === 'success' ? elapsedSeconds.value.toFixed(2) : '',
-    n_attempts: Number(trialForm.n_attempts),
-    n_regrasps: Number(trialForm.n_regrasps),
-    stage_reached: currentTask.value.stages ? Number(trialForm.stage_reached) : '',
+    n_attempts: trialForm.n_attempts,
+    n_regrasps: trialForm.n_regrasps,
+    stage_reached: currentTask.value.stages ? trialForm.stage_reached : '',
     strategy: trialForm.strategy,
     notes: trialForm.notes.trim()
-  })
+  }
+  const issues = recordErrors(record)
+  if (issues.length) { error.value = issues.join(' '); return }
+  record.n_attempts = Number(record.n_attempts)
+  record.n_regrasps = Number(record.n_regrasps)
+  if (currentTask.value.stages) record.stage_reached = Number(record.stage_reached)
+  trials.value.push(record)
   resetTimer()
   if (currentTrials.value.length >= REQUIRED_TRIALS) step.value = 'review'
 }
@@ -361,7 +408,7 @@ function removeTrial(trialId) {
 
 function csvEscape(value) {
   const text = String(value ?? '')
-  return /[",\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text
+  return /[",\r\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text
 }
 
 function downloadBlob(filename, blob) {
@@ -398,6 +445,11 @@ function buildPlatformMarkdown() {
 - Board orientation: ${session.board_orientation}
 - HiveBoard version or commit: ${session.hiveboard_version}
 - Evaluation date: ${session.date}
+- Printer: ${session.evaluation_mode === 'physical' ? session.printer : 'Not applicable (simulation)'}
+- Material: ${session.evaluation_mode === 'physical' ? session.material : 'Not applicable (simulation)'}
+- Print settings: ${session.evaluation_mode === 'physical' ? session.print_settings : 'Not applicable (simulation)'}
+- Post-processing: ${session.evaluation_mode === 'physical' ? session.post_processing : 'Not applicable (simulation)'}
+- Calibration notes: ${session.calibration_notes || 'Not provided'}
 `
 }
 
@@ -454,6 +506,12 @@ function manifestPayload() {
     benchmark: 'HiveBoard',
     submission_id: ensureSubmissionId(),
     created_at: new Date().toISOString(),
+    trial_records_complete: submissionReady.value,
+    supporting_files: {
+      setup_photo: { filename: 'setup.jpg', included: Boolean(setupPhoto.value) },
+      recordings_included: false,
+      instructions: 'Add the listed recordings and any missing setup.jpg before submission.'
+    },
     evaluation: {
       mode: session.evaluation_mode,
       lab_id: session.lab_id,
@@ -520,6 +578,33 @@ function chooseSessionFile() {
   sessionInput.value?.click()
 }
 
+function readSetup(data) {
+  if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error('Invalid setup')
+  const result = emptySession()
+  for (const field of Object.keys(result)) {
+    if (data[field] !== undefined) {
+      if (typeof data[field] !== 'string') throw new Error('Invalid setup field')
+      result[field] = data[field].trim()
+    }
+  }
+  if (!validSetup(result) || (result.submission_id && !/^[a-z0-9_]+$/.test(result.submission_id))) throw new Error('Invalid setup')
+  return result
+}
+
+function readSession(data) {
+  if (!data || data.type !== 'hiveboard-evaluation-session' || data.schema_version !== SCHEMA_VERSION || !Array.isArray(data.trials)) throw new Error('Unsupported session format')
+  const imported = readSetup(data.session)
+  if (!validDate(imported.date)) throw new Error('Invalid date')
+  const records = data.trials.map(trial => {
+    const issues = recordErrors(trial, imported)
+    if (issues.length) throw new Error(`Trial ${trial?.trial_id ?? '?'}: ${issues.join(' ')}`)
+    return Object.fromEntries(CSV_COLUMNS.map(field => [field, trial[field]]))
+  })
+  if (new Set(records.map(trial => Number(trial.trial_id))).size !== records.length ||
+    tasks.some(task => records.filter(trial => trial.attachment_id === task.id).length > REQUIRED_TRIALS)) throw new Error('Duplicate IDs or too many trials for a condition')
+  return { imported, records }
+}
+
 async function importProfile(event) {
   error.value = ''
   transferMessage.value = ''
@@ -533,9 +618,9 @@ async function importProfile(event) {
   }
   try {
     const data = JSON.parse(await file.text())
-    if (data.type !== 'hiveboard-platform-profile' || !data.profile) throw new Error('Invalid profile')
-    const imported = Object.fromEntries(PROFILE_FIELDS.map(field => [field, data.profile[field] ?? '']))
-    Object.assign(session, imported, { submission_id: '' })
+    if (data.type !== 'hiveboard-platform-profile' || data.schema_version !== SCHEMA_VERSION) throw new Error('Invalid profile')
+    const imported = readSetup(data.profile)
+    Object.assign(session, Object.fromEntries(PROFILE_FIELDS.map(field => [field, imported[field]])), { submission_id: '' })
     transferMessage.value = `Profile loaded: ${session.platform_id || file.name}`
   } catch (_) {
     error.value = 'This file is not a valid HiveBoard platform profile.'
@@ -552,17 +637,34 @@ async function importSession(event) {
   if (trials.value.length && !window.confirm('Replace the current session and its recorded trials?')) return
   try {
     const data = JSON.parse(await file.text())
-    if (data.type !== 'hiveboard-evaluation-session' || !data.session || !Array.isArray(data.trials)) throw new Error('Invalid session')
-    if (data.trials.some(trial => !tasks.some(task => task.id === trial.attachment_id))) throw new Error('Unknown attachment')
-    Object.assign(session, emptySession(), data.session)
-    trials.value = data.trials
+    const { imported, records } = readSession(data)
+    Object.assign(session, imported)
+    trials.value = records
+    setupPhoto.value = null
     selectedTaskId.value = tasks.some(task => task.id === data.selected_task_id) ? data.selected_task_id : tasks[0].id
     resetTimer()
     if (sessionReady.value) ensureSubmissionId()
     step.value = trials.value.length ? 'review' : (sessionReady.value ? 'task' : 'setup')
     transferMessage.value = `Session loaded: ${session.submission_id || file.name}`
-  } catch (_) {
-    error.value = 'This file is not a valid HiveBoard evaluation session.'
+  } catch (problem) {
+    error.value = `Session not imported. ${problem.message}`
+  }
+}
+
+async function attachSetupPhoto(event) {
+  const file = event.target.files?.[0]
+  event.target.value = ''
+  if (!file) return
+  transferMessage.value = ''
+  transferIsError.value = false
+  try {
+    const signature = new Uint8Array(await file.slice(0, 3).arrayBuffer())
+    if (signature[0] !== 255 || signature[1] !== 216 || signature[2] !== 255) throw new Error('Select a JPEG image for setup.jpg.')
+    setupPhoto.value = file
+    transferMessage.value = 'Setup photograph attached. It will be included as setup.jpg in the ZIP.'
+  } catch (problem) {
+    transferMessage.value = problem.message
+    transferIsError.value = true
   }
 }
 
@@ -570,7 +672,7 @@ async function downloadPackage() {
   transferMessage.value = ''
   transferIsError.value = false
   if (!submissionReady.value) {
-    transferMessage.value = 'Complete every readiness check before creating the submission package.'
+    transferMessage.value = 'Complete the experimental setup and record five valid trials for all 13 conditions.'
     transferIsError.value = true
     return
   }
@@ -584,10 +686,12 @@ async function downloadPackage() {
     root.file('manifest.json', JSON.stringify(manifestPayload(), null, 2) + '\n')
     root.file('session.json', JSON.stringify(sessionPayload(), null, 2) + '\n')
     root.file('recording-instructions.md', buildRecordingInstructions())
+    if (setupPhoto.value) root.file('setup.jpg', await setupPhoto.value.arrayBuffer())
+    root.file('README.md', `# HiveBoard results\n\nSubmission ID: ${submissionId}\n\nTrial records: 65/65 complete.\n\n${setupPhoto.value ? 'setup.jpg is included.' : 'Add a photograph of the complete setup as setup.jpg.'}\nAdd the 65 recordings listed in recording-instructions.md to videos/.\nThe runner has not uploaded these files or reviewed the recordings.\n`)
     root.folder('videos').file('README.md', 'Place the external-camera MP4 files listed in ../recording-instructions.md in this directory before submission.\n')
     const blob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 6 } })
     downloadBlob(`${submissionId}.zip`, blob)
-    transferMessage.value = 'Submission package created. Add the named external-camera videos to its videos directory before submission.'
+    transferMessage.value = `Results downloaded. Add the 65 recordings to videos/${setupPhoto.value ? '.' : ' and a setup photograph as setup.jpg.'}`
   } catch (_) {
     transferMessage.value = 'The submission package could not be created. Export the session and try again.'
     transferIsError.value = true
@@ -601,6 +705,7 @@ function newSession() {
   clearTicker()
   Object.assign(session, emptySession(), { date: new Date().toISOString().slice(0, 10) })
   trials.value = []
+  setupPhoto.value = null
   selectedTaskId.value = tasks[0].id
   step.value = 'setup'
   transferMessage.value = ''
@@ -624,6 +729,7 @@ function handleKey(event) {
     closeExampleVideo()
     return
   }
+  if (exampleVideoTask.value) return
   const target = event.target
   if (target && ['INPUT', 'SELECT', 'TEXTAREA', 'BUTTON'].includes(target.tagName)) return
   if (event.code !== 'Space' || step.value !== 'trial') return
@@ -636,8 +742,12 @@ onMounted(() => {
   session.date = new Date().toISOString().slice(0, 10)
   try {
     const saved = JSON.parse(window.localStorage.getItem(STORAGE_KEY) || 'null')
-    if (saved?.session) Object.assign(session, saved.session)
-    if (Array.isArray(saved?.trials)) trials.value = saved.trials
+    if (saved?.session) {
+      for (const field of Object.keys(emptySession())) {
+        if (typeof saved.session[field] === 'string') session[field] = saved.session[field]
+      }
+    }
+    if (Array.isArray(saved?.trials)) trials.value = saved.trials.filter(trial => trial && typeof trial === 'object')
     if (tasks.some(task => task.id === saved?.selectedTaskId)) selectedTaskId.value = saved.selectedTaskId
     if (['setup', 'task', 'trial', 'review'].includes(saved?.step)) step.value = saved.step
     if (trials.value.length && sessionReady.value) ensureSubmissionId()
@@ -650,7 +760,10 @@ onMounted(() => {
 watch(
   () => ({ session: { ...session }, trials: trials.value, selectedTaskId: selectedTaskId.value, step: step.value }),
   value => {
-    if (mounted.value) window.localStorage.setItem(STORAGE_KEY, JSON.stringify(value))
+    if (mounted.value) {
+      try { window.localStorage.setItem(STORAGE_KEY, JSON.stringify(value)); storageError.value = '' }
+      catch (_) { storageError.value = 'This browser could not save the session. Export a session backup before closing the page.' }
+    }
   },
   { deep: true }
 )
@@ -664,10 +777,11 @@ onUnmounted(() => {
 
 <template>
   <div class="runner">
+    <p v-if="storageError" class="form-error" role="alert">{{ storageError }}</p>
     <nav class="runner-steps" aria-label="Evaluation progress">
       <button v-for="(label, key) in { setup: '1. Setup', task: '2. Task', trial: '3. Trial', review: '4. Review' }"
         :key="key" :class="{ active: step === key }" type="button"
-        :disabled="key !== 'setup' && !sessionReady" @click="step = key">
+        :disabled="trialPending || (key !== 'setup' && !sessionReady)" @click="step = key">
         {{ label }}
       </button>
     </nav>
@@ -675,10 +789,9 @@ onUnmounted(() => {
     <section v-if="step === 'setup'" class="runner-section">
       <div class="section-heading">
         <div>
-          <p class="eyebrow">Session configuration</p>
-          <h2>Describe the evaluation setup</h2>
+          <h2>Experimental setup</h2>
         </div>
-        <p>Required fields are marked with an asterisk. These values are reused in every trial row.</p>
+        <p>Required fields are marked with an asterisk.</p>
       </div>
 
       <div class="transfer-tools">
@@ -699,7 +812,8 @@ onUnmounted(() => {
       <input ref="profileInput" class="visually-hidden" type="file" accept="application/json,.json" @change="importProfile">
       <input ref="sessionInput" class="visually-hidden" type="file" accept="application/json,.json" @change="importSession">
 
-      <div class="form-grid">
+      <p v-if="trials.length">The platform and date are fixed for these trials. Start a new session to change them.</p>
+      <fieldset class="form-grid setup-fields" :disabled="trials.length > 0">
         <label>Evaluation mode *
           <select v-model="session.evaluation_mode">
             <option value="physical">Physical board</option>
@@ -715,7 +829,7 @@ onUnmounted(() => {
         </label>
         <label>Platform ID *
           <input v-model="session.platform_id" placeholder="franka_2f85" pattern="[a-z0-9_]+">
-          <span>Robot and end-effector combination.</span>
+          <span>Identifier for the end-effector and control-interface combination.</span>
         </label>
         <label>Robot model *
           <input v-model="session.robot_model" placeholder="Franka Research 3">
@@ -735,6 +849,15 @@ onUnmounted(() => {
         <label class="wide">HiveBoard release or commit *
           <input v-model="session.hiveboard_version" placeholder="Release tag or full commit hash">
         </label>
+      </fieldset>
+      <div class="form-grid setup-details">
+        <template v-if="session.evaluation_mode === 'physical'">
+          <label>Printer *<input v-model="session.printer" placeholder="Manufacturer and model"></label>
+          <label>Material *<input v-model="session.material" placeholder="Filament type and manufacturer"></label>
+          <label class="wide">Print settings *<textarea v-model="session.print_settings" rows="2" placeholder="Nozzle, layer height, walls, infill, and part orientation"></textarea></label>
+          <label class="wide">Post-processing *<textarea v-model="session.post_processing" rows="2" placeholder="Sanding, lubrication, dimensional adjustments, or None"></textarea></label>
+        </template>
+        <label class="wide">Calibration notes<input v-model="session.calibration_notes" placeholder="Relevant calibration or setup changes"></label>
       </div>
       <p v-if="error" class="form-error" role="alert">{{ error }}</p>
       <p v-if="transferMessage" class="form-success" role="status">{{ transferMessage }}</p>
@@ -769,7 +892,7 @@ onUnmounted(() => {
           <h2>{{ currentTask.name }}</h2>
           <p>Trial {{ currentTrialNumber }} of {{ REQUIRED_TRIALS }}</p>
         </div>
-        <button class="secondary compact" type="button" @click="step = 'task'">Change task</button>
+        <button class="secondary compact" type="button" :disabled="trialPending" @click="step = 'task'">Change task</button>
       </div>
 
       <aside class="recording-reminder" role="note">
@@ -797,9 +920,9 @@ onUnmounted(() => {
           <p v-if="timerState === 'countdown'" class="countdown-label">Starting in</p>
           <div v-if="timerState === 'countdown'" class="countdown" aria-live="assertive">{{ countdown }}</div>
           <div v-else class="stopwatch" aria-live="polite">{{ displayTime }}</div>
-          <p v-if="timerState === 'idle'">A five-second countdown gives the operator time to prepare.</p>
+          <p v-if="timerState === 'idle'">Begin the task when the countdown reaches zero.</p>
           <p v-else-if="timerState === 'running'">Timer running · automatic timeout at {{ currentTask.timeout }} seconds</p>
-          <p v-else-if="timerState === 'form'">Timing stopped. Complete the trial record below.</p>
+          <p v-else-if="timerState === 'form'">Enter the trial outcome.</p>
 
           <div v-if="timerState === 'idle'" class="timer-actions">
             <button class="primary large" type="button" @click="startCountdown">Start countdown</button>
@@ -880,8 +1003,8 @@ onUnmounted(() => {
 
     <section v-else class="runner-section">
       <div class="section-heading">
-        <div><p class="eyebrow">Session review</p><h2>Recorded trials</h2></div>
-        <p>Progress is stored only in this browser until the files are downloaded.</p>
+        <div><h2>Recorded trials</h2></div>
+        <p>Export the session to keep a backup or continue on another computer.</p>
       </div>
 
       <div v-if="!trials.length" class="empty-state">
@@ -896,7 +1019,7 @@ onUnmounted(() => {
         <div class="review-stats">
           <div><strong>{{ trials.length }}</strong><span>Total trials</span></div>
           <div><strong>{{ trials.filter(t => t.outcome === 'success').length }}</strong><span>Successful</span></div>
-          <div><strong>{{ new Set(trials.map(t => t.attachment_id)).size }}</strong><span>Attachments</span></div>
+          <div><strong>{{ new Set(trials.map(t => t.attachment_id)).size }}</strong><span>Conditions</span></div>
         </div>
         <div class="table-wrap">
           <table>
@@ -923,27 +1046,32 @@ onUnmounted(() => {
           <div class="readiness-heading">
             <div>
               <p class="eyebrow">Submission package</p>
-              <h3 id="readiness-title">Readiness checks</h3>
+              <h3 id="readiness-title">Check trial records</h3>
             </div>
-            <strong :class="submissionReady ? 'ready' : 'incomplete'">{{ submissionReady ? 'Ready' : 'Incomplete' }}</strong>
+            <strong :class="submissionReady ? 'ready' : 'incomplete'">{{ submissionReady ? 'Trial records complete' : 'Trial records incomplete' }}</strong>
           </div>
           <ul class="validation-list">
             <li v-for="check in validationChecks" :key="check.label" :class="{ passed: check.passed }">
               <span aria-hidden="true">{{ check.passed ? '✓' : '—' }}</span>{{ check.label }}
             </li>
           </ul>
+          <ul v-if="invalidRecords.length" class="form-error"><li v-for="issue in invalidRecords" :key="issue">{{ issue }}</li></ul>
           <div class="condition-progress">
             <div v-for="task in tasks" :key="task.id" :class="{ complete: taskTrialCounts[task.id] === REQUIRED_TRIALS }">
               <span>{{ task.name }}</span>
               <strong>{{ taskTrialCounts[task.id] }}/{{ REQUIRED_TRIALS }}</strong>
             </div>
           </div>
-          <p>The ZIP contains <code>trials.csv</code>, <code>platform.md</code>, <code>manifest.json</code>, a transferable session backup, and the required filename for every external-camera recording.</p>
+          <p>The ZIP contains the trial log, platform description, manifest, session backup, and recording filenames.</p>
+          <h3>Supporting files</h3>
+          <label>Setup photograph (JPEG)<input type="file" accept="image/jpeg,.jpg,.jpeg" @change="attachSetupPhoto"></label>
+          <p>{{ setupPhoto ? 'setup.jpg attached; it will be included in the ZIP.' : 'setup.jpg missing; attach it here or add it to the downloaded folder.' }} The photograph is not stored in session backups; attach it again after reloading or importing a session.</p>
+          <p>Add all 65 external-camera recordings to <code>videos/</code> after extracting the ZIP. The runner checks trial entries; it does not assess task success or inspect recordings.</p>
           <p v-if="transferMessage" :class="transferIsError ? 'form-error' : 'form-success'" role="status">{{ transferMessage }}</p>
           <div class="package-action">
-            <span v-if="!submissionReady">Complete all readiness checks to enable the final package.</span>
+            <span v-if="!submissionReady">Record five valid trials per condition and complete the experimental setup before downloading the complete results.</span>
             <button class="primary" type="button" :disabled="!submissionReady || packageState === 'building'" @click="downloadPackage">
-              {{ packageState === 'building' ? 'Creating package…' : 'Download submission package (.zip)' }}
+              {{ packageState === 'building' ? 'Creating ZIP…' : 'Download results (.zip)' }}
             </button>
           </div>
         </section>
@@ -966,7 +1094,6 @@ onUnmounted(() => {
           <source :src="exampleVideoTask.video" type="video/mp4">
           Your browser does not support HTML video.
         </video>
-        <p class="video-caption">This example illustrates the task outcome; it does not prescribe a control strategy.</p>
       </section>
     </div>
   </Teleport>
@@ -993,6 +1120,9 @@ onUnmounted(() => {
 .transfer-tools > div > div { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .3rem; }
 .visually-hidden { position: absolute; overflow: hidden; width: 1px; height: 1px; padding: 0; border: 0; clip: rect(0 0 0 0); white-space: nowrap; }
 .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem 1.25rem; }
+.setup-fields { min-width: 0; margin: 0; padding: 0; border: 0; }
+.setup-fields:disabled input, .setup-fields:disabled select { background: #f1f3f5; }
+.setup-details { margin-top: 1rem; }
 label { display: flex; flex-direction: column; gap: .38rem; color: #34414d; font-size: .88rem; font-weight: 600; }
 label span { color: #6e7781; font-size: .76rem; font-weight: 400; }
 input, select, textarea { box-sizing: border-box; width: 100%; min-height: 42px; padding: .58rem .68rem; border: 1px solid #c7cdd3; border-radius: 2px; background: #fff; color: #24292f; font: inherit; font-size: 1rem; }

@@ -1,13 +1,13 @@
 # Benchmark overview
 
-HiveBoard evaluates manipulation of mechanisms that impose functional constraints—not only the grasping and relocation of free objects. A platform may need to rotate a valve about a fixed axis, keep a screw engaged with its thread, align and insert a key, or complete a sequence of dependent actions.
+HiveBoard evaluates manipulation of mechanisms with constrained motion. A platform may need to rotate a valve about a fixed axis, keep a screw engaged with its thread, align and insert a key, or complete a sequence of dependent actions.
 
 <figure class="doc-image">
   <img src="/images/attachments-overview.png" alt="HiveBoard attachments grouped by manipulation category">
   <figcaption>The HiveBoard attachments shown on the honeycomb base and as isolated mechanisms.</figcaption>
 </figure>
 
-## Design principles
+## Hardware and platform support
 
 ### Reproducible hardware
 
@@ -21,7 +21,7 @@ The seven-cell honeycomb base accepts interchangeable attachments. Modules can b
 
 The protocol treats a platform as an end-effector plus the system that positions and commands it. This keeps the benchmark applicable to fixed-base manipulators, quadruped manipulators, wearable devices, prosthetic hands, and exoskeletons.
 
-### Simulation-ready mechanisms
+### Simulation models
 
 The repository includes articulated assets with visual and collision meshes, joint limits, and nominal physical properties. These assets support inspection and integration in common robotics simulators; a separate repository contains the Isaac Lab implementation.
 
@@ -45,7 +45,7 @@ For each attachment, the protocol records:
 
 HiveBoard is intended to characterize task performance and failure modes. The validation protocol does not, by itself, define a universal ranking of platforms or control interfaces.
 
-## Source of truth
+## Repository files
 
 The current files are maintained in the [HiveBoard parts and protocol repository](https://github.com/EESC-LabRoM/HiveBoard):
 

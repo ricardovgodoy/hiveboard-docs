@@ -29,20 +29,27 @@ Do not merge results across:
 
 ## Accompanying files
 
-A shareable result package should contain:
+A complete submission contains 65 trials: five for each of the 13 conditions. Include these files:
 
 ```text
 result-package/
 ├── trials.csv
 ├── setup.jpg
-└── platform.md
+├── platform.md
+├── manifest.json
+├── session.json
+├── recording-instructions.md
+└── videos/              # one recording per trial
 ```
 
-The platform description should identify the robot, end-effector, control method, board orientation, relevant calibration, HiveBoard version, and any deviations from the protocol.
+The platform description identifies the robot, end-effector, control method, board orientation, calibration notes, HiveBoard version, printing parameters, post-processing, and any protocol deviations.
+
+The [Evaluation Runner](/benchmark/evaluation-runner) generates the ZIP after all 65 trial entries and required setup details pass validation. Attach a JPEG setup photograph to include it as `setup.jpg`, or add it after extracting the ZIP. Add the recordings to `videos/` using the filenames in `recording-instructions.md`.
+
+“Trial records complete” refers to the log and setup fields. It does not confirm that all supporting files are present or that an organizer has reviewed the outcomes. The manifest lists the expected recordings and whether the setup photograph was included when the ZIP was generated.
 
 ## Interpretation
 
 HiveBoard exposes different constraints across attachments. A low score can indicate incompatible grasp geometry, insufficient force, kinematic limits, perception difficulty, slip, or insufficient control precision. Report these causes instead of interpreting every unsuccessful trial as the same type of failure.
 
 Comparisons between platforms should state which factors differ. The protocol characterizes the complete manipulation platform and should not be used to attribute a result to the gripper, robot, controller, or operator in isolation without a controlled experiment.
-

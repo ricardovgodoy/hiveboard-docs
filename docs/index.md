@@ -1,8 +1,8 @@
 # HiveBoard
 
-HiveBoard is an open, modular, fully 3D-printable benchmark for manipulation of functional mechanisms. Its interchangeable attachments cover rotational, threaded, insertion, linear, and multi-stage tasks. The same artifact and protocol can be used with robot grippers, dexterous hands, teleoperated systems, and worn prosthetic hands.
+HiveBoard is an open, modular, fully 3D-printable benchmark for manipulation of functional mechanisms. Its interchangeable attachments cover rotational, threaded, insertion, linear, and multi-stage tasks. The same board and protocol can be used with robot grippers, dexterous hands, teleoperated systems, and worn prosthetic hands.
 
-This documentation contains the instructions required to reproduce the hardware, run the evaluation protocol, record results, and use the simulation assets. A general overview of the benchmark is available on the [HiveBoard project website](https://hiveboard-bench.github.io).
+For the paper, demonstration videos, and reported results, see the [HiveBoard project website](https://hiveboard-bench.github.io).
 
 ## Documentation
 

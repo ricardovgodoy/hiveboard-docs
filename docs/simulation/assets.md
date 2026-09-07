@@ -2,7 +2,7 @@
 
 The main HiveBoard repository includes articulated digital assets for the physical mechanisms. Use these files when integrating HiveBoard into an existing simulator or robotics stack.
 
-Browse the canonical [`Simulation/` directory](https://github.com/EESC-LabRoM/HiveBoard/tree/main/Simulation).
+Browse the [`Simulation/` directory](https://github.com/EESC-LabRoM/HiveBoard/tree/main/Simulation).
 
 ## Available mechanism groups
 
@@ -32,7 +32,7 @@ Depending on the mechanism, the simulation package provides:
 
 Threaded motion is represented by coupled rotational and translational joints where a native helical joint is unavailable. This reproduces the advance of a threaded component while keeping the asset portable across simulators.
 
-## Choose the right layer
+## URDF and USD assets
 
 | Goal | Starting point |
 |---|---|
@@ -50,7 +50,7 @@ Printer calibration, filament, layer orientation, surface wear, sanding, and mec
 1. print and assemble the target mechanism;
 2. measure its range and actuation resistance;
 3. identify the relevant simulation parameters;
-4. store the overrides separately from the canonical asset; and
+4. store the overrides separately from the original asset; and
 5. report both the asset commit and the identified values.
 
 ## Validation before use
@@ -64,5 +64,4 @@ Before training or evaluation, check that:
 - units and scale are correct; and
 - a full actuation cycle completes without instability.
 
-Loading successfully is not the same as reproducing the benchmark. A complete simulation experiment should also define observations, actions, reset states, success checks, termination conditions, and evaluation seeds.
-
+A simulation experiment must define observations, actions, reset states, success checks, termination conditions, and evaluation seeds.
