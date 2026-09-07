@@ -2,6 +2,8 @@
 
 An attachment is part of the benchmark only when its physical geometry, simulation model, task definition, and evaluation metadata agree.
 
+For the [ADL and bimanual open calls](/contribute/), contact the authors before starting the design. Read the [submission requirements and credit policy](/contribute/requirements) alongside this technical guide.
+
 ## 1. Reuse the mounting interface
 
 Start from the existing press-fit geometry in the CAD repository. Do not redraw the interface from measurements when an editable source is available.
@@ -58,7 +60,7 @@ Keep identified parameters separate from nominal defaults when they depend on a 
 
 ## 5. Extend the protocol
 
-Add a stable lowercase `attachment_id`. Then update:
+Propose a stable lowercase `attachment_id` and supply the task metadata for review. Once the attachment is accepted into a versioned benchmark extension, coordinate the following updates with the maintainers:
 
 - the module reference;
 - the success and timeout table;
@@ -66,6 +68,8 @@ Add a stable lowercase `attachment_id`. Then update:
 - `trials.csv` and `trials.xlsx`;
 - logging validation; and
 - the reproducibility checklist.
+
+The current benchmark still requires all 13 conditions, with five trials each. A proposed attachment does not replace an existing condition or change the current runner's required trial count.
 
 ## 6. Submit the contribution
 

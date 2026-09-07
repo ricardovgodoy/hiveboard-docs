@@ -17,6 +17,12 @@ For the paper, demonstration videos, and reported results, see the [HiveBoard pr
 
 The printable parts, CAD models, articulated assets, protocol, and trial templates are maintained in the [HiveBoard repository](https://github.com/EESC-LabRoM/HiveBoard). The Isaac Lab environments are maintained in a [separate repository](https://github.com/EESC-LabRoM/isaaclab-hiveboard).
 
+## Open calls for contributions
+
+We welcome functional assets for [activities of daily living](/contribute/adl) and [bimanual manipulation](/contribute/bimanual). Contact the authors before starting a design to check its suitability and avoid duplicating work.
+
+Contributors who deliver at least one accepted, functional asset with the complete files and validation evidence may be eligible for authorship on future papers that use the contribution. Smaller contributions may be acknowledged. See the [requirements and credit policy](/contribute/requirements).
+
 ## Citation
 
 If you use HiveBoard in your research, please cite the project paper:

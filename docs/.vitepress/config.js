@@ -17,6 +17,7 @@ export default defineConfig({
     siteTitle: 'HiveBoard',
     search: { provider: 'local' },
     nav: [
+      { text: 'Contribute', link: '/contribute/' },
       { text: 'Project website', link: 'https://hiveboard-bench.github.io' },
       { text: 'GitHub', link: 'https://github.com/EESC-LabRoM/HiveBoard' }
     ],
@@ -54,8 +55,12 @@ export default defineConfig({
         ]
       },
       {
-        text: 'Development',
+        text: 'Contributions',
         items: [
+          { text: 'Open Calls', link: '/contribute/' },
+          { text: 'Activities of Daily Living', link: '/contribute/adl' },
+          { text: 'Bimanual Manipulation', link: '/contribute/bimanual' },
+          { text: 'Requirements and Credit', link: '/contribute/requirements' },
           { text: 'Adding an Attachment', link: '/guides/new-attachment' }
         ]
       },

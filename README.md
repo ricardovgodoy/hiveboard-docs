@@ -17,6 +17,12 @@ The documentation is maintained here for review before migration to the HiveBoar
 | Simulation | [URDF and USD assets](https://www.ricardovgodoy.com/hiveboard-docs/simulation/assets) and [Isaac Lab integration](https://www.ricardovgodoy.com/hiveboard-docs/simulation/isaac-lab) |
 | New mechanisms | [Add an attachment](https://www.ricardovgodoy.com/hiveboard-docs/guides/new-attachment) |
 
+## Open calls for contributions
+
+We welcome functional assets for [activities of daily living](https://www.ricardovgodoy.com/hiveboard-docs/contribute/adl) and [bimanual manipulation](https://www.ricardovgodoy.com/hiveboard-docs/contribute/bimanual). Contact the authors before starting a design to check its suitability.
+
+At least one accepted, functional asset with the complete files and validation evidence can establish eligibility for authorship on a future paper that uses the contribution. Smaller contributions may be acknowledged. See the [requirements and credit policy](https://www.ricardovgodoy.com/hiveboard-docs/contribute/requirements).
+
 ## Evaluation runner
 
 The runner supports all **13 conditions, with five recorded trials per condition: 65 trials per complete evaluation**. The ball valve with and without the friction ring are separate conditions.
