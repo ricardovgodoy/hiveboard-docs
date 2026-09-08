@@ -2,7 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import vm from 'node:vm'
-import { computed, reactive, ref } from 'vue'
+import { computed, reactive, ref, watch, nextTick } from 'vue'
 import JSZip from 'jszip'
 
 // Exercise the actual component functions with a controllable clock and downloads.
@@ -14,18 +14,19 @@ function runner() {
   const downloads = []
   const context = vm.createContext({
     computed, reactive, ref, JSZip, Blob, Uint8Array, console,
-    onMounted() {}, onUnmounted() {}, watch() {},
+    onMounted() {}, onUnmounted() {}, watch,
     performance: { now: () => now },
     window: { setInterval: () => 1, clearInterval() {}, setTimeout: fn => fn(), confirm: () => true, localStorage: { removeItem() {} } },
     document: { createElement: () => ({ click() {} }) },
-    URL: { createObjectURL: blob => { downloads.push(blob); return 'blob:test' }, revokeObjectURL() {} }
+    URL: class extends URL { static createObjectURL(blob) { downloads.push(blob); return 'blob:test' } static revokeObjectURL() {} }
   })
   vm.runInContext(source, context)
   const api = vm.runInContext(`({session, trials, tasks, timerState, elapsedMs, trialForm, selectedTaskId, step,
     submissionReady, metadataComplete, setupPhoto, recordErrors, readSession, readSetup,
     importSession, startTimer, startCountdown, updateTimerOnce, finishTiming, resetTimer,
     saveTrial, error, sessionPayload, profilePayload, downloadPackage, manifestPayload,
-    handleKey, exampleVideoTask, trialPending, openTask})`, context)
+    handleKey, exampleVideoTask, trialPending, openTask, contact, publicationConsent, evidenceConfirmed,
+    submissionDraft, submissionMailto, prepareSubmissionEmail, submissionEmailErrors, validPackageUrl})`, context)
   Object.assign(api.session, {
     submission_id: 'lab_robot_20260907_abcdef', evaluation_mode: 'physical', lab_id: 'lab', platform_id: 'robot',
     robot_model: 'FR3', end_effector: '2F85', control_method: 'Teleoperation', board_orientation: 'horizontal',
@@ -177,4 +178,44 @@ test('ZIP contains consistent records, printing details, and truthful supporting
   assert.ok(withPhoto.file(prefix + 'setup.jpg'))
   const withPhotoManifest = JSON.parse(await withPhoto.file(prefix + 'manifest.json').async('string'))
   assert.equal(withPhotoManifest.supporting_files.setup_photo.included, true)
+})
+
+test('email requires a complete evaluation, contact, evidence and explicit permission', async () => {
+  const r = runner()
+  fill(r)
+  Object.assign(r.contact, { name: 'Researcher & Co', email: 'private@example.org', institution: 'Test institute', package_url: 'https://example.org/package?token=private&part=1' })
+  await nextTick()
+  r.prepareSubmissionEmail()
+  assert.equal(r.submissionDraft.value, '')
+  r.publicationConsent.value = true
+  r.evidenceConfirmed.value = true
+  await nextTick()
+  r.prepareSubmissionEmail()
+  assert.match(r.submissionDraft.value, /Trial records: 65/)
+  assert.match(r.submissionDraft.value, /Publication permission: I authorize/)
+  const mailto = new URL(r.submissionMailto.value)
+  assert.equal(mailto.pathname, 'ricardo.godoy@usp.br')
+  assert.equal(mailto.searchParams.get('body'), r.submissionDraft.value)
+  r.trials.value.pop()
+  await nextTick()
+  assert.equal(r.submissionDraft.value, '')
+  assert.equal(r.publicationConsent.value, false)
+  r.prepareSubmissionEmail()
+  assert.equal(r.submissionDraft.value, '')
+  for (const link of ['javascript:alert(1)', 'http://example.org', 'https://user:pass@example.org', 'invalid']) assert.equal(r.validPackageUrl(link), false)
+})
+
+test('private contact and package links never enter exported sessions, profiles or ZIP', async () => {
+  const r = runner()
+  fill(r)
+  Object.assign(r.contact, { name: 'Private contact marker', email: 'private@example.org', institution: 'Private institution marker', package_url: 'https://example.org/private-package-marker' })
+  for (const payload of [r.sessionPayload(), r.profilePayload(), r.manifestPayload()]) {
+    assert.doesNotMatch(JSON.stringify(payload), /private@example|Private contact marker|private-package-marker|Private institution marker/)
+  }
+  await r.downloadPackage()
+  const zip = await JSZip.loadAsync(await r.downloads[0].arrayBuffer())
+  for (const file of Object.values(zip.files).filter(file => !file.dir)) {
+    assert.doesNotMatch(await file.async('string'), /private@example|Private contact marker|private-package-marker|Private institution marker/)
+  }
+  assert.match(await zip.file(r.session.submission_id + '/submission-instructions.md').async('string'), /Opening a draft does not send it/)
 })

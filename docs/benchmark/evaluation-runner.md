@@ -18,3 +18,5 @@ Records are saved in this browser. Export the session to continue on another com
 <ClientOnly>
   <EvaluationRunner />
 </ClientOnly>
+
+To submit a complete evaluation, use **Submit for review** in the Review step. Share your completed package by a private download link, enter your contact details and publication permission, then prepare and send the email to the organizer. See [submission and review instructions](/benchmark/results#submit-for-organizer-review).

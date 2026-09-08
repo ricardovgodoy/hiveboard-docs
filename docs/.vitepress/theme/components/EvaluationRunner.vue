@@ -162,6 +162,76 @@ const packageState = ref('idle')
 const mounted = ref(false)
 const setupPhoto = ref(null)
 const storageError = ref('')
+const submissionOpen = ref(false)
+const contact = reactive({ name: '', email: '', institution: '', package_url: '' })
+const publicationConsent = ref(false)
+const evidenceConfirmed = ref(false)
+const submissionMessage = ref('')
+const submissionDraft = ref('')
+const ORGANIZER_EMAIL = 'ricardo.godoy@usp.br'
+const PUBLICATION_PERMISSION = 'I authorize the HiveBoard organizers to publish the approved trial data, platform description, setup photograph, and trial recordings. I have permission to share these materials, including permission from identifiable people in the photographs or videos. My contact name and email are for organizer correspondence and must not be published.'
+
+function validPackageUrl(value) {
+  try {
+    const url = new URL(value)
+    return url.protocol === 'https:' && Boolean(url.hostname) && !url.username && !url.password
+  } catch (_) { return false }
+}
+
+function submissionEmailErrors() {
+  const issues = []
+  if (!submissionReady.value) issues.push('Complete all 65 valid trial records and required platform details.')
+  if (!hasText(contact.name)) issues.push('Enter a contact name.')
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contact.email)) issues.push('Enter a valid contact email.')
+  if (!hasText(contact.institution)) issues.push('Enter your institution, or Independent if unaffiliated.')
+  if (!validPackageUrl(contact.package_url)) issues.push('Enter an HTTPS download link for the completed package.')
+  if (!evidenceConfirmed.value) issues.push('Confirm that the shared package includes setup.jpg and all 65 recordings.')
+  if (!publicationConsent.value) issues.push('Permission to publish approved results is required for submission. You can still download your results without granting permission.')
+  return issues
+}
+
+function prepareSubmissionEmail() {
+  submissionDraft.value = ''
+  const issues = submissionEmailErrors()
+  submissionMessage.value = issues.join(' ')
+  if (issues.length) return
+  submissionDraft.value = `Hello Ricardo,
+
+Please review my HiveBoard evaluation.
+
+Submission ID: ${ensureSubmissionId()}
+Contact name: ${contact.name.trim()}
+Contact email: ${contact.email.trim()}
+Institution: ${contact.institution.trim()}
+Robot: ${session.robot_model}
+End-effector: ${session.end_effector}
+Control interface: ${session.control_method}
+Evaluation mode: ${session.evaluation_mode}
+Board orientation: ${session.board_orientation}
+Evaluation date: ${session.date}
+Trial records: 65 (13 conditions, five trials each)
+
+Package link: ${contact.package_url.trim()}
+
+I confirm that this package includes setup.jpg and all 65 trial recordings with the filenames specified by the runner.
+
+Publication permission: ${PUBLICATION_PERMISSION}
+Permission recorded at: ${new Date().toISOString()}
+
+Please contact me if corrections are needed. I understand that submission does not imply approval and that only approved results will be published.
+`
+}
+
+const submissionMailto = computed(() => `mailto:${ORGANIZER_EMAIL}?subject=${encodeURIComponent(`HiveBoard evaluation ${session.submission_id}`)}&body=${encodeURIComponent(submissionDraft.value)}`)
+
+function resetSubmission() {
+  submissionOpen.value = false
+  Object.assign(contact, { name: '', email: '', institution: '', package_url: '' })
+  publicationConsent.value = false
+  evidenceConfirmed.value = false
+  submissionMessage.value = ''
+  submissionDraft.value = ''
+}
 let ticker = null
 let startMark = 0
 let countdownEnd = 0
@@ -483,11 +553,11 @@ function buildRecordingInstructions() {
     .sort((a, b) => a.trial_id - b.trial_id)
     .map(trial => `| ${trial.trial_id} | \`${trial.attachment_id}\` | \`${videoFilename(trial)}\` |`)
     .join('\n')
-  return `# External-camera recording instructions
+  return `# Trial recording instructions
 
 Submission ID: \`${ensureSubmissionId()}\`
 
-1. Start the external camera before starting the runner countdown.
+1. ${session.evaluation_mode === 'simulation' ? 'Start a screen recording of the simulation before starting the runner countdown.' : 'Start the external camera before starting the runner countdown.'}
 2. Record the complete trial without cuts.
 3. Keep the HiveBoard, robot and end-effector, and final task state visible.
 4. Save one MP4 file for each row in \`trials.csv\`.
@@ -526,6 +596,7 @@ function manifestPayload() {
       platform_description: 'platform.md',
       session_backup: 'session.json',
       recording_instructions: 'recording-instructions.md',
+      submission_instructions: 'submission-instructions.md',
       videos_directory: 'videos/'
     },
     summary: {
@@ -639,6 +710,7 @@ async function importSession(event) {
     const data = JSON.parse(await file.text())
     const { imported, records } = readSession(data)
     Object.assign(session, imported)
+    resetSubmission()
     trials.value = records
     setupPhoto.value = null
     selectedTaskId.value = tasks.some(task => task.id === data.selected_task_id) ? data.selected_task_id : tasks[0].id
@@ -686,9 +758,10 @@ async function downloadPackage() {
     root.file('manifest.json', JSON.stringify(manifestPayload(), null, 2) + '\n')
     root.file('session.json', JSON.stringify(sessionPayload(), null, 2) + '\n')
     root.file('recording-instructions.md', buildRecordingInstructions())
+    root.file('submission-instructions.md', '# Submit for organizer review\n\nAdd setup.jpg and all 65 recordings listed in recording-instructions.md. Recompress the completed folder and upload it to storage you control. Give ricardo.godoy@usp.br download access; do not make the package publicly accessible before review.\n\nReturn to the runner, import session.json if needed, and select Submit for review. Enter your contact details and package link, confirm the supporting files and publication permission, then prepare and send the email. Opening a draft does not send it.\n\nThe organizer checks the records and recordings, requests corrections by email, and approves results before publication. Contact details, private download links, and correspondence must not be published.\n')
     if (setupPhoto.value) root.file('setup.jpg', await setupPhoto.value.arrayBuffer())
     root.file('README.md', `# HiveBoard results\n\nSubmission ID: ${submissionId}\n\nTrial records: 65/65 complete.\n\n${setupPhoto.value ? 'setup.jpg is included.' : 'Add a photograph of the complete setup as setup.jpg.'}\nAdd the 65 recordings listed in recording-instructions.md to videos/.\nThe runner has not uploaded these files or reviewed the recordings.\n`)
-    root.folder('videos').file('README.md', 'Place the external-camera MP4 files listed in ../recording-instructions.md in this directory before submission.\n')
+    root.folder('videos').file('README.md', 'Place the trial MP4 files listed in ../recording-instructions.md in this directory before submission. Use external-camera recordings for physical trials and screen recordings for simulated trials.\n')
     const blob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 6 } })
     downloadBlob(`${submissionId}.zip`, blob)
     transferMessage.value = `Results downloaded. Add the 65 recordings to videos/${setupPhoto.value ? '.' : ' and a setup photograph as setup.jpg.'}`
@@ -705,6 +778,7 @@ function newSession() {
   clearTicker()
   Object.assign(session, emptySession(), { date: new Date().toISOString().slice(0, 10) })
   trials.value = []
+  resetSubmission()
   setupPhoto.value = null
   selectedTaskId.value = tasks[0].id
   step.value = 'setup'
@@ -756,6 +830,18 @@ onMounted(() => {
   window.addEventListener('keydown', handleKey)
   document.addEventListener('visibilitychange', updateTimerOnce)
 })
+
+watch(
+  () => ({ session: { ...session }, trials: trials.value }),
+  () => { evidenceConfirmed.value = false; publicationConsent.value = false; submissionDraft.value = '' },
+  { deep: true }
+)
+
+watch(
+  () => ({ ...contact, consent: publicationConsent.value, evidence: evidenceConfirmed.value }),
+  () => { submissionDraft.value = ''; submissionMessage.value = '' },
+  { deep: true }
+)
 
 watch(
   () => ({ session: { ...session }, trials: trials.value, selectedTaskId: selectedTaskId.value, step: step.value }),
@@ -1066,13 +1152,48 @@ onUnmounted(() => {
           <h3>Supporting files</h3>
           <label>Setup photograph (JPEG)<input type="file" accept="image/jpeg,.jpg,.jpeg" @change="attachSetupPhoto"></label>
           <p>{{ setupPhoto ? 'setup.jpg attached; it will be included in the ZIP.' : 'setup.jpg missing; attach it here or add it to the downloaded folder.' }} The photograph is not stored in session backups; attach it again after reloading or importing a session.</p>
-          <p>Add all 65 external-camera recordings to <code>videos/</code> after extracting the ZIP. The runner checks trial entries; it does not assess task success or inspect recordings.</p>
+          <p>Add all 65 {{ session.evaluation_mode === 'simulation' ? 'screen recordings' : 'external-camera recordings' }} to <code>videos/</code> after extracting the ZIP. The runner checks trial entries; it does not assess task success or inspect recordings.</p>
           <p v-if="transferMessage" :class="transferIsError ? 'form-error' : 'form-success'" role="status">{{ transferMessage }}</p>
           <div class="package-action">
             <span v-if="!submissionReady">Record five valid trials per condition and complete the experimental setup before downloading the complete results.</span>
             <button class="primary" type="button" :disabled="!submissionReady || packageState === 'building'" @click="downloadPackage">
               {{ packageState === 'building' ? 'Creating ZIP…' : 'Download results (.zip)' }}
             </button>
+          </div>
+        </section>
+        <section class="readiness-panel" aria-labelledby="submission-title">
+          <h3 id="submission-title">Submit for organizer review</h3>
+          <p>Submissions are reviewed by email. Download your results, add the photograph and recordings, and share the completed package with the organizer.</p>
+          <button class="secondary" type="button" :disabled="!submissionReady" @click="submissionOpen = true">Submit for review</button>
+          <p v-if="!submissionReady">Complete the required setup fields and all 65 valid trial records to continue.</p>
+          <div v-if="submissionOpen">
+            <ol>
+              <li>Download and extract the results ZIP above.</li>
+              <li>Add <code>setup.jpg</code> and the 65 external-camera recordings to <code>videos/</code>, using the filenames in <code>recording-instructions.md</code>. For simulated evaluations, provide screen recordings showing each complete trial.</li>
+              <li>Recompress the completed folder and upload it to storage you control. Give <strong>ricardo.godoy@usp.br</strong> download access. Keep the package private during review and keep the link available until the review is complete.</li>
+            </ol>
+            <p>Contact details and the private download link appear only in the email draft. They are not saved in this browser's session, exported profiles, or results ZIP. Re-enter them if you reload the page.</p>
+            <form @submit.prevent="prepareSubmissionEmail">
+              <div class="form-grid">
+                <label>Contact name *<input v-model="contact.name" autocomplete="name" required maxlength="150"></label>
+                <label>Contact email *<input v-model="contact.email" type="email" autocomplete="email" required maxlength="254"></label>
+                <label>Institution *<input v-model="contact.institution" autocomplete="organization" required maxlength="200" placeholder="Institution, or Independent"></label>
+                <label>Completed package link *<input v-model="contact.package_url" type="url" required maxlength="2000" placeholder="https://…"></label>
+              </div>
+              <p>Robot: <strong>{{ session.robot_model }}</strong> · End-effector: <strong>{{ session.end_effector }}</strong> · Control interface: <strong>{{ session.control_method }}</strong></p>
+              <label class="submission-check"><input v-model="evidenceConfirmed" type="checkbox">I checked that the shared package contains the setup photograph and all 65 recordings, and that the organizer can download it.</label>
+              <label class="submission-check"><input v-model="publicationConsent" type="checkbox">{{ PUBLICATION_PERMISSION }}</label>
+              <p>You may download and keep your results without submitting or granting publication permission.</p>
+              <p v-if="submissionMessage" class="form-error" role="alert">{{ submissionMessage }}</p>
+              <button class="primary" type="submit" :disabled="!submissionReady">Prepare submission email</button>
+            </form>
+            <div v-if="submissionDraft && submissionReady" class="submission-draft">
+              <h4>Email draft — not sent</h4>
+              <p>Review the text and send it using your email application. If the email link does not work, copy the draft below and send it to <strong>ricardo.godoy@usp.br</strong>.</p>
+              <label>Draft email<textarea :value="submissionDraft" readonly rows="15"></textarea></label>
+              <a :href="submissionMailto">Open draft in email application</a>
+              <p>The organizer will check the records and recordings and contact you if corrections are needed. Only approved results will be published. This page does not send email, upload files, or confirm receipt.</p>
+            </div>
           </div>
         </section>
       </template>
@@ -1100,6 +1221,10 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
+.submission-check { display: flex; align-items: flex-start; gap: .65rem; margin: 1rem 0; }
+.runner .submission-check input { width: 1.1rem; height: 1.1rem; min-height: 0; padding: 0; flex: 0 0 auto; margin-top: .3rem; }
+.submission-draft { margin-top: 1.5rem; }
+.submission-draft textarea { width: 100%; }
 .runner { margin: 1.5rem 0 3rem; border: 1px solid #dfe2e5; background: #fff; color: #24292f; }
 .runner-steps { display: grid; grid-template-columns: repeat(4, 1fr); border-bottom: 1px solid #dfe2e5; background: #f7f8fa; }
 .runner-steps button { padding: .8rem .6rem; border: 0; border-right: 1px solid #dfe2e5; background: transparent; color: #57606a; font: inherit; font-size: .86rem; text-align: center; }

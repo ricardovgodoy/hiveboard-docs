@@ -45,7 +45,9 @@ The results ZIP becomes available when all 65 trial entries and required setup d
 
 Record every trial with an external camera. After extracting the ZIP, add the 65 recordings to `videos/` and add `setup.jpg` if it was not attached in the runner. Photographs and recordings are not included in JSON session backups.
 
-“Trial records complete” refers to the log and setup fields. The runner does not review task success or video evidence. Online submission and public rankings are not implemented.
+“Trial records complete” refers to the log and setup fields. The runner does not review task success or video evidence.
+
+For organizer review, download the ZIP, add the photograph and recordings, and share the completed package through storage you control. The runner collects contact details, the package link, and permission to publish approved results, then prepares an email to ricardo.godoy@usp.br. The user must send the email. Contact details and private links are excluded from session backups and the ZIP. See [submission and review](https://www.ricardovgodoy.com/hiveboard-docs/benchmark/results#submit-for-organizer-review). Upload servers, organizer accounts, public result pages, and rankings are not implemented.
 
 ## Local development
 
