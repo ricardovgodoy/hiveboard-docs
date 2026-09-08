@@ -16,6 +16,8 @@ We invite laboratories, individual researchers, and teams to contribute manipula
 
 Record robot states, executed commands, and camera streams while performing HiveBoard tasks. Include timestamps, calibration, an episode index, and a loading example. There is no fixed episode count or requirement to cover all conditions; larger collections are encouraged. Contact the organizers before collection to agree on tasks, signals, and formats. See the [dataset call](/contribute/evaluations) for requirements and direct email submission.
 
+Substantial accepted datasets may establish eligibility for authorship on future dataset papers that use the contribution. Smaller contributions may be acknowledged. See the [dataset credit policy](/contribute/evaluations#authorship-and-acknowledgments).
+
 ## Propose a new asset
 
 Contact [Ricardo V. Godoy](mailto:ricardo.godoy@usp.br) before starting detailed design or fabrication. Send a short task description, a sketch or reference image, and the intended call. The authors will discuss whether the idea fits the benchmark, overlaps with an existing asset, and can be tested consistently across platforms.

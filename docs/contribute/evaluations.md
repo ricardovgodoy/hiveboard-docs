@@ -74,6 +74,16 @@ Email [ricardo.godoy@usp.br](mailto:ricardo.godoy@usp.br?subject=HiveBoard%20lea
 
 The organizers will review the dataset structure, signal definitions, alignment, loading example, and recordings, and request corrections if needed. Public release follows review and agreement on publication and reuse permissions. Contact details and private download links will remain private.
 
+## Authorship and acknowledgments
+
+Contributors who provide a **substantial, accepted dataset** may be eligible for authorship on future HiveBoard dataset papers that use and report their contribution.
+
+The organizers will consider the number of usable episodes, data quality and completeness, coverage of tasks and platforms, and work on collection, calibration, curation, and validation. There is no fixed episode threshold that guarantees authorship. Discuss the planned contribution and expected credit with the authors before collection.
+
+Authorship is assessed for each paper and each contributor. Eligible contributors should also participate in drafting or substantive revision, approve the final manuscript, and take responsibility for their contribution. Dataset acceptance does not guarantee authorship on every future paper or establish author order.
+
+Smaller contributions may be acknowledged with the contributor's consent. Record each person's role in the dataset documentation so credit reflects the work performed.
+
 ## Optional benchmark evaluation
 
 If you also want to report a formal benchmark evaluation, use the [Evaluation Runner](/benchmark/evaluation-runner) and submit **all 13 conditions with five trials each, for 65 trials total**, following the [evaluation submission process](/benchmark/results#submit-for-organizer-review). That requirement applies to benchmark evaluations only, not to this learning-dataset call.
