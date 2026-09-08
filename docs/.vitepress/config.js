@@ -58,6 +58,7 @@ export default defineConfig({
         text: 'Contributions',
         items: [
           { text: 'Open Calls', link: '/contribute/' },
+          { text: 'Learning Datasets', link: '/contribute/evaluations' },
           { text: 'Activities of Daily Living', link: '/contribute/adl' },
           { text: 'Bimanual Manipulation', link: '/contribute/bimanual' },
           { text: 'Requirements and Credit', link: '/contribute/requirements' },

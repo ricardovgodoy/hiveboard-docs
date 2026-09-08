@@ -19,6 +19,8 @@ The documentation is maintained here for review before migration to the HiveBoar
 
 ## Open calls for contributions
 
+We invite laboratories and individual researchers to [contribute datasets for learning-based manipulation](https://www.ricardovgodoy.com/hiveboard-docs/contribute/evaluations), including robot states, actions, camera observations, timestamps, calibration, and task outcomes. There is no fixed episode count; larger collections are encouraged. Contact the organizers before collection to agree on tasks, recorded signals, and submission format. Dataset contributions are submitted directly by email.
+
 We welcome functional assets for [activities of daily living](https://www.ricardovgodoy.com/hiveboard-docs/contribute/adl) and [bimanual manipulation](https://www.ricardovgodoy.com/hiveboard-docs/contribute/bimanual). Contact the authors before starting a design to check its suitability.
 
 At least one accepted, functional asset with the complete files and validation evidence can establish eligibility for authorship on a future paper that uses the contribution. Smaller contributions may be acknowledged. See the [requirements and credit policy](https://www.ricardovgodoy.com/hiveboard-docs/contribute/requirements).
